@@ -6,62 +6,64 @@ namespace PgNet
 {
     internal ref struct ValueListBuilder<T>
     {
-        private Span<T> _span;
-        private T[]? _arrayFromPool;
-        private int _pos;
+        private Span<T> m_span;
+        private readonly ArrayPool<T> m_pool;
+        private T[]? m_arrayFromPool;
+        private int m_pos;
 
-        public ValueListBuilder(Span<T> initialSpan)
+        public ValueListBuilder(Span<T> initialSpan, ArrayPool<T> pool)
         {
-            _span = initialSpan;
-            _arrayFromPool = null;
-            _pos = 0;
+            m_span = initialSpan;
+            m_pool = pool;
+            m_arrayFromPool = null;
+            m_pos = 0;
         }
 
         public int Length
         {
-            get => _pos;
-            set => _pos = value;
+            get => m_pos;
+            set => m_pos = value;
         }
 
-        public ref T this[int index] => ref _span[index];
+        public ref T this[int index] => ref m_span[index];
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Append(T item)
         {
-            var pos = _pos;
-            if (pos >= _span.Length)
+            var pos = m_pos;
+            if (pos >= m_span.Length)
                 Grow();
 
-            _span[pos] = item;
-            _pos = pos + 1;
+            m_span[pos] = item;
+            m_pos = pos + 1;
         }
 
         public ReadOnlySpan<T> AsSpan()
         {
-            return _span.Slice(0, _pos);
+            return m_span.Slice(0, m_pos);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Dispose()
         {
-            if (_arrayFromPool != null)
+            if (m_arrayFromPool != null)
             {
-                ArrayPool<T>.Shared.Return(_arrayFromPool);
-                _arrayFromPool = null;
+                m_pool.Return(m_arrayFromPool);
+                m_arrayFromPool = null;
             }
         }
 
         private void Grow()
         {
-            var array = ArrayPool<T>.Shared.Rent(_span.Length * 2);
+            var array = ArrayPool<T>.Shared.Rent(m_span.Length * 2);
 
-            _span.TryCopyTo(array);
+            m_span.TryCopyTo(array);
 
-            var toReturn = _arrayFromPool;
-            _span = _arrayFromPool = array;
+            var toReturn = m_arrayFromPool;
+            m_span = m_arrayFromPool = array;
             if (toReturn != null)
             {
-                ArrayPool<T>.Shared.Return(toReturn);
+                m_pool.Return(toReturn);
             }
         }
     }

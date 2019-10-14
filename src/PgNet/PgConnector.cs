@@ -188,7 +188,7 @@ namespace PgNet
 
                             break;
                         case BackendMessageCode.ErrorResponse:
-                            var error = new ErrorResponse(buffer);
+                            var error = new ErrorResponse(buffer, ArrayPool<ErrorOrNoticeResponseField>.Shared);
                             break;
                         default:
                             throw new UnexpectedBackendMessageException(

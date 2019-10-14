@@ -8,9 +8,9 @@ namespace PgNet
     {
         public readonly byte MessageType;
         public readonly int Length;
-        public readonly ErrorResponseField[] Fields;
+        public readonly ErrorOrNoticeResponseField[] Fields;
 
-        public ErrorResponse(ReadOnlyMemory<byte> bytes)
+        public ErrorResponse(ReadOnlyMemory<byte> bytes, ArrayPool<ErrorOrNoticeResponseField> arrayPool)
         {
             var encoding = Encoding.UTF8;
             var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(bytes));
@@ -19,11 +19,11 @@ namespace PgNet
 
             if (Length > sizeof(byte) + sizeof(int) + sizeof(byte))
             {
-                using (var list = new ValueListBuilder<ErrorResponseField>(Span<ErrorResponseField>.Empty))
+                using (var list = new ValueListBuilder<ErrorOrNoticeResponseField>(Span<ErrorOrNoticeResponseField>.Empty, arrayPool))
                 {
                     while (true)
                     {
-                        var field = new ErrorResponseField(ref reader, encoding);
+                        var field = new ErrorOrNoticeResponseField(ref reader, encoding);
                         if (field.Type == FieldCodes.Termination)
                             break;
                         list.Append(field);
@@ -34,17 +34,17 @@ namespace PgNet
             }
             else
             {
-                Fields = Array.Empty<ErrorResponseField>();
+                Fields = Array.Empty<ErrorOrNoticeResponseField>();
             }
         }
     }
 
-    internal readonly struct ErrorResponseField
+    internal readonly struct ErrorOrNoticeResponseField
     {
         public readonly byte Type;
         public readonly string Value;
 
-        public ErrorResponseField(ref SequenceReader<byte> reader, Encoding encoding)
+        public ErrorOrNoticeResponseField(ref SequenceReader<byte> reader, Encoding encoding)
         {
             reader.TryRead(out Type);
             Value = string.Empty;
