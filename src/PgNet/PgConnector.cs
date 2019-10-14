@@ -136,10 +136,10 @@ namespace PgNet
                     ThrowHelper.ThrowNotImplementedException();
                     break;
                 case AuthenticationRequestType.CleartextPassword:
-                    ThrowHelper.ThrowNotImplementedException();
+                    await AuthenticateClearText(password, socket, cancellationToken).ConfigureAwait(false);
                     break;
                 case AuthenticationRequestType.MD5Password:
-                    await AuthenticateMD5(authResponse.AdditionalInfo, userName, password, socket, cancellationToken);
+                    await AuthenticateMD5(authResponse.AdditionalInfo, userName, password, socket, cancellationToken).ConfigureAwait(false);
                     break;
                 case AuthenticationRequestType.SCMCredential:
                     ThrowHelper.ThrowNotImplementedException();
@@ -174,26 +174,28 @@ namespace PgNet
             if (result > 0)
             {
                 buffer = buffer.Slice(0, result);
-                var responseCode = buffer.Span[0];
-                
-                switch (responseCode)
+
+                byte responseCode;
+                if (!Authentication.IsOk(buffer))
                 {
-                    case BackendMessageCode.AuthenticationRequest:
-                        if (!Authentication.IsOk(buffer))
-                        {
+                    responseCode = buffer.Span[0];
+
+                    switch (responseCode)
+                    {
+                        case BackendMessageCode.AuthenticationRequest:
                             //TODO:
                             ThrowHelper.ThrowNotImplementedException();
-                        }
 
-                        buffer = buffer.Slice(Authentication.OkResponseLength);
-                        break;
-                    case BackendMessageCode.ErrorResponse:
-                        var error = new ErrorResponse(buffer);
-                        break;
-                    default:
-                        throw new UnexpectedBackendMessageException(
-                            $"Unexpected backend message '{(char)responseCode}'");
+                            break;
+                        case BackendMessageCode.ErrorResponse:
+                            var error = new ErrorResponse(buffer);
+                            break;
+                        default:
+                            throw new UnexpectedBackendMessageException(
+                                $"Unexpected backend message '{(char)responseCode}'");
+                    }
                 }
+                buffer = buffer.Slice(Authentication.OkResponseLength);
 
                 responseCode = buffer.Span[0];
                 while (responseCode == BackendMessageCode.ParameterStatus)
@@ -226,6 +228,12 @@ namespace PgNet
             }
 
             m_arrayPool.Return(arrayBuffer);
+        }
+
+        private ValueTask<int> AuthenticateClearText(string password, Socket socket, CancellationToken cancellationToken)
+        {
+            var w = new PasswordCleartext(password);
+            return WriteAndSendMessage(w, socket, cancellationToken);
         }
 
         private ValueTask<int> AuthenticateMD5(ReadOnlyMemory<byte> salt, string user, string password, Socket socket, CancellationToken cancellationToken)
