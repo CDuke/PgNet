@@ -35,10 +35,20 @@ namespace PgNet
         {
             m_connectorState = ConnectorState.Connecting;
             var socket = await ConnectAsync(host, cancellationToken).ConfigureAwait(false);
-            await SendStartupMessage(socket, database, userName, cancellationToken).ConfigureAwait(false);
-            await ProcessStartupMessageResponse(socket, userName, password, cancellationToken).ConfigureAwait(false);
-            m_connectorState = ConnectorState.ReadyForQuery;
-            m_socket = socket;
+
+            var sendBufferBytes = m_arrayPool.Rent(512);
+            try
+            {
+                var sendBuffer = new Memory<byte>(sendBufferBytes);
+                await SendStartupMessage(socket, sendBuffer, database, userName, cancellationToken).ConfigureAwait(false);
+                await ProcessStartupMessageResponse(socket, sendBuffer, userName, password, cancellationToken).ConfigureAwait(false);
+                m_connectorState = ConnectorState.ReadyForQuery;
+                m_socket = socket;
+            }
+            finally
+            {
+                m_arrayPool.Return(sendBufferBytes);
+            }
         }
 
         private static async ValueTask<Socket> ConnectAsync(string host, CancellationToken cancellationToken)
@@ -85,17 +95,17 @@ namespace PgNet
             return new ValueTask<IPAddress[]>(Dns.GetHostAddressesAsync(host));
         }
 
-        private ValueTask<int> SendStartupMessage(Socket socket, string database, string userName,
+        private ValueTask<int> SendStartupMessage(Socket socket, Memory<byte> sendBuffer, string database, string userName,
             CancellationToken cancellationToken)
         {
             var startupMessage = new StartupMessage();
             startupMessage.SetDatabase(database);
             startupMessage.SetUser(userName);
             startupMessage.SetApplicationName("MyApp");
-            return WriteAndSendMessage(startupMessage, socket, cancellationToken);
+            return WriteAndSendMessage(startupMessage, socket, sendBuffer, cancellationToken);
         }
 
-        private async ValueTask ProcessStartupMessageResponse(Socket socket, string userName, string password, CancellationToken cancellationToken)
+        private async ValueTask ProcessStartupMessageResponse(Socket socket, Memory<byte> sendBuffer, string userName, string password, CancellationToken cancellationToken)
         {
             var arrayBuffer = m_arrayPool.Rent(512);
             var buffer = new Memory<byte>(arrayBuffer);
@@ -107,7 +117,7 @@ namespace PgNet
                 switch (responseCode)
                 {
                     case BackendMessageCode.AuthenticationRequest:
-                        await ProcessAuthentication(buffer.Slice(0, result), userName, password, socket, cancellationToken).ConfigureAwait(false);
+                        await ProcessAuthentication(buffer.Slice(0, result), userName, password, socket, sendBuffer, cancellationToken).ConfigureAwait(false);
                         break;
                     case BackendMessageCode.ErrorResponse: break;
                     default:
@@ -124,9 +134,10 @@ namespace PgNet
             m_arrayPool.Return(arrayBuffer);
         }
 
-        private async ValueTask ProcessAuthentication(Memory<byte> readBytes, string userName, string password, Socket socket, CancellationToken cancellationToken)
+        private async ValueTask ProcessAuthentication(Memory<byte> authenticationResponse, string userName, string password,
+            Socket socket, Memory<byte> sendBuffer, CancellationToken cancellationToken)
         {
-            var authResponse = new Authentication(readBytes);
+            var authResponse = new Authentication(authenticationResponse);
             switch (authResponse.AuthenticationRequestType)
             {
                 case AuthenticationRequestType.Ok:
@@ -136,10 +147,10 @@ namespace PgNet
                     ThrowHelper.ThrowNotImplementedException();
                     break;
                 case AuthenticationRequestType.CleartextPassword:
-                    await AuthenticateClearText(password, socket, cancellationToken).ConfigureAwait(false);
+                    await AuthenticateClearText(password, socket, sendBuffer, cancellationToken).ConfigureAwait(false);
                     break;
                 case AuthenticationRequestType.MD5Password:
-                    await AuthenticateMD5(authResponse.AdditionalInfo, userName, password, socket, cancellationToken).ConfigureAwait(false);
+                    await AuthenticateMD5(authResponse.AdditionalInfo, userName, password, socket, sendBuffer, cancellationToken).ConfigureAwait(false);
                     break;
                 case AuthenticationRequestType.SCMCredential:
                     ThrowHelper.ThrowNotImplementedException();
@@ -230,19 +241,21 @@ namespace PgNet
             m_arrayPool.Return(arrayBuffer);
         }
 
-        private ValueTask<int> AuthenticateClearText(string password, Socket socket, CancellationToken cancellationToken)
+        private ValueTask<int> AuthenticateClearText(string password, Socket socket,
+            Memory<byte> sendBuffer, CancellationToken cancellationToken)
         {
             var w = new PasswordCleartext(password);
-            return WriteAndSendMessage(w, socket, cancellationToken);
+            return WriteAndSendMessage(w, socket, sendBuffer, cancellationToken);
         }
 
-        private ValueTask<int> AuthenticateMD5(ReadOnlyMemory<byte> salt, string user, string password, Socket socket, CancellationToken cancellationToken)
+        private ValueTask<int> AuthenticateMD5(ReadOnlyMemory<byte> salt, string user, string password,
+            Socket socket, Memory<byte> sendBuffer, CancellationToken cancellationToken)
         {
             var w = new PasswordMD5Message(user, password, salt);
-            return WriteAndSendMessage(w, socket, cancellationToken);
+            return WriteAndSendMessage(w, socket, sendBuffer, cancellationToken);
         }
 
-        private async ValueTask<int> WriteAndSendMessage<T>(T writer, Socket socket, CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
+        /*private async ValueTask<int> WriteAndSendMessage<T>(T writer, Socket socket, CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
         {
             var messageLength = writer.CalculateLength();
             var messageBytes = m_arrayPool.Rent(messageLength);
@@ -260,6 +273,16 @@ namespace PgNet
             }
 
             return send;
+        }*/
+
+        private async ValueTask<int> WriteAndSendMessage<T>(T writer, Socket socket, Memory<byte> sendBuffer,
+            CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
+        {
+            var messageLength = writer.CalculateLength();
+            var message = sendBuffer.Slice(0, messageLength);
+
+            writer.Write(message);
+            return await socket.SendAsync(message, SocketFlags.None, cancellationToken);
         }
 
         private ValueTask<int> SendSimpleMessage<T>(T sender, CancellationToken cancellationToken) where T : struct, IFrontendMessageSender
