@@ -275,14 +275,14 @@ namespace PgNet
             return send;
         }*/
 
-        private async ValueTask<int> WriteAndSendMessage<T>(T writer, Socket socket, Memory<byte> sendBuffer,
+        private static ValueTask<int> WriteAndSendMessage<T>(T writer, Socket socket, Memory<byte> sendBuffer,
             CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
         {
             var messageLength = writer.CalculateLength();
             var message = sendBuffer.Slice(0, messageLength);
 
             writer.Write(message);
-            return await socket.SendAsync(message, SocketFlags.None, cancellationToken);
+            return socket.SendAsync(message, SocketFlags.None, cancellationToken);
         }
 
         private ValueTask<int> SendSimpleMessage<T>(T sender, CancellationToken cancellationToken) where T : struct, IFrontendMessageSender
