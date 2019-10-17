@@ -3,6 +3,7 @@ using System.Diagnostics.Contracts;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 
 namespace PgNet
 {
@@ -36,7 +37,7 @@ namespace PgNet
             Span<byte> temp = stackalloc byte[64 + 4 * sizeof(uint)];
             var working = temp.Slice(0, 64);
             var state = MemoryMarshal.Cast<byte, uint>(temp.Slice(64, 4 * sizeof(uint)));
-            //Span<uint> state = stackalloc uint[4];
+
             state[3] = 0x10325476;
             state[2] = 0x98badcfe;
             state[1] = 0xefcdab89;
@@ -51,7 +52,6 @@ namespace PgNet
                 Transform(ref state, source);
             }
 
-            //Span<byte> working = stackalloc byte[64];
             HashFinal(state, source, destination, length, working);
         }
 
@@ -71,7 +71,7 @@ namespace PgNet
                 BitConverter.TryWriteBytes(working.Slice(56), len);
                 Transform(ref state, working);
             }
-            else //We need an aditional chunk to store the length
+            else //We need an additional chunk to store the length
             {
                 Transform(ref state, working);
 
