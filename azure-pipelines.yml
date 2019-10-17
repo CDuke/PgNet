@@ -8,6 +8,11 @@ trigger:
 pr:
 - master
 
+resources:
+  containers:
+  - container: pg12
+    image: postgres:12
+
 pool:
   vmImage: 'ubuntu-latest'
 
