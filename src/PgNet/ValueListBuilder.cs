@@ -57,7 +57,7 @@ namespace PgNet
         {
             var array = ArrayPool<T>.Shared.Rent(m_span.Length * 2);
 
-            m_span.TryCopyTo(array);
+            _ = m_span.TryCopyTo(array);
 
             var toReturn = m_arrayFromPool;
             m_span = m_arrayFromPool = array;
