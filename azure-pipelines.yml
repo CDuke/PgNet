@@ -16,6 +16,9 @@ resources:
 pool:
   vmImage: 'ubuntu-latest'
 
+services:
+  postgres:pg12
+
 steps:
 - task: DotNetCoreCLI@2
   inputs:
