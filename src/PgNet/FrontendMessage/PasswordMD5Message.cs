@@ -16,19 +16,19 @@ namespace PgNet.FrontendMessage
         }
         public int CalculateLength()
         {
-            return sizeof(byte) + sizeof(int) + MD5Helper.PasswordHashLength + 1;
+            return sizeof(byte) + sizeof(int) + PgMD5Helper.PasswordHashLength + 1;
         }
 
         public void Write(Memory<byte> buffer)
         {
-            Span<byte> hash = stackalloc byte[MD5Helper.PasswordHashLength];
-            MD5Helper.ComputePassword(m_user, m_password, m_salt.Span, hash);
+            Span<byte> hash = stackalloc byte[PgMD5Helper.PasswordHashLength];
+            PgMD5Helper.ComputePassword(m_user, m_password, m_salt.Span, hash);
 
             var binaryWriter = new BinarySpanWriter(buffer.Span);
             binaryWriter.WriteByte(FrontendMessageCode.Password);
-            binaryWriter.WriteInt32(sizeof(int) + MD5Helper.PasswordHashLength + 1);
+            binaryWriter.WriteInt32(sizeof(int) + PgMD5Helper.PasswordHashLength + 1);
             hash.CopyTo(binaryWriter.Span);
-            binaryWriter.Advance(MD5Helper.PasswordHashLength);
+            binaryWriter.Advance(PgMD5Helper.PasswordHashLength);
             binaryWriter.WriteByte(0);
         }
     }

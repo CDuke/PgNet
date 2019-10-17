@@ -2,7 +2,6 @@ using System;
 using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using PgNet.BackendMessage;
@@ -34,7 +33,16 @@ namespace PgNet
             CancellationToken cancellationToken)
         {
             m_connectorState = ConnectorState.Connecting;
-            var socket = await ConnectAsync(host, cancellationToken).ConfigureAwait(false);
+            var socketTask = ConnectAsync(host, cancellationToken);
+            Socket socket;
+            if (socketTask.IsCompletedSuccessfully)
+            {
+                socket = socketTask.Result;
+            }
+            else
+            {
+                socket = await socketTask.ConfigureAwait(false);
+            }
 
             var sendBufferBytes = m_arrayPool.Rent(512);
             var receiveBufferBytes = m_arrayPool.Rent(512);
@@ -42,9 +50,21 @@ namespace PgNet
             {
                 var sendBuffer = new Memory<byte>(sendBufferBytes);
                 var receiveBuffer = new Memory<byte>(sendBufferBytes);
-                await SendStartupMessage(socket, sendBuffer, database, userName, cancellationToken).ConfigureAwait(false);
-                await ProcessStartupMessageResponse(socket, sendBuffer, receiveBuffer,
-                    userName, password, cancellationToken).ConfigureAwait(false);
+
+                var sendStartupMessageTask =
+                    SendStartupMessage(socket, sendBuffer, database, userName, cancellationToken);
+                if (!sendStartupMessageTask.IsCompletedSuccessfully)
+                {
+                    await sendStartupMessageTask.ConfigureAwait(false);
+                }
+
+                var processStartupMessageResponseTask = ProcessStartupMessageResponse(socket, sendBuffer, receiveBuffer,
+                    userName, password, cancellationToken);
+                if (!processStartupMessageResponseTask.IsCompletedSuccessfully)
+                {
+                    await processStartupMessageResponseTask.ConfigureAwait(false);
+                }
+                
                 m_connectorState = ConnectorState.ReadyForQuery;
                 m_socket = socket;
             }
@@ -65,7 +85,7 @@ namespace PgNet
             }
             else
             {
-                endpoints = await endpointsTask;
+                endpoints = await endpointsTask.ConfigureAwait(false);
             }
 
             foreach (var ipAddress in endpoints)
@@ -77,7 +97,12 @@ namespace PgNet
 
                 SetSocketOptions(socket);
 
-                await socket.ConnectAsync(ipAddress, PostgreSQLDefaultPort).ConfigureAwait(false);
+                var connectTask = socket.ConnectAsync(ipAddress, PostgreSQLDefaultPort);
+                if (!connectTask.IsCompletedSuccessfully)
+                {
+                    await connectTask.ConfigureAwait(false);
+                }
+
                 return socket;
             }
 
@@ -112,15 +137,25 @@ namespace PgNet
         private async ValueTask ProcessStartupMessageResponse(Socket socket, Memory<byte> sendBuffer, Memory<byte> receiveBuffer,
             string userName, string password, CancellationToken cancellationToken)
         {
-            var result = await socket.ReceiveAsync(receiveBuffer, SocketFlags.None, cancellationToken)
-                .ConfigureAwait(false);
-            if (result > 0)
+            var receiveAsyncTask = socket.ReceiveAsync(receiveBuffer, SocketFlags.None, cancellationToken);
+            int receiveAsync;
+            if (receiveAsyncTask.IsCompletedSuccessfully)
+            {
+                receiveAsync = receiveAsyncTask.Result;
+            }
+            else
+            {
+                receiveAsync = await receiveAsyncTask.ConfigureAwait(false);
+            }
+
+
+            if (receiveAsync > 0)
             {
                 var responseCode = receiveBuffer.Span[0];
                 switch (responseCode)
                 {
                     case BackendMessageCode.AuthenticationRequest:
-                        var authResponse = receiveBuffer.Slice(0, result);
+                        var authResponse = receiveBuffer.Slice(0, receiveAsync);
                         await ProcessAuthentication(authResponse, userName, password, socket, sendBuffer, receiveBuffer, cancellationToken)
                             .ConfigureAwait(false);
                         break;

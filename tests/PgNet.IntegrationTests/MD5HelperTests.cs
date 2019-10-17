@@ -10,9 +10,9 @@ namespace PgNet.IntegrationTests
         [Fact]
         public void Test1()
         {
-            Span<byte> h = stackalloc byte[MD5Helper.PasswordHashLength];
+            Span<byte> h = stackalloc byte[PgMD5Helper.PasswordHashLength];
             var salt = new byte[] {1, 2, 3, 4};
-            MD5Helper.ComputePassword("postgres", "admin", salt, h);
+            PgMD5Helper.ComputePassword("postgres", "admin", salt, h);
             var h2 = CalcHash("postgres", "admin", salt);
 
             for (var i = 0; i < h.Length; i++)
