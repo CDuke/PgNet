@@ -3,24 +3,41 @@
 # Add steps that run tests, create a NuGet package, deploy, and more:
 # https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
 
-trigger:
-- master
-pr:
-- master
-
 resources:
   containers:
   - container: pg12
     image: postgres:12
 
-pool:
-  vmImage: 'ubuntu-latest'
+trigger:
+- master
+pr:
+- master
 
-services:
-  postgres: pg12
+stages:
+- stage: Build
+  jobs:
+  - job: BuildJob
+    displayName: Build and run unit tests
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: DotNetCoreCLI@2
+      inputs:
+        command: 'build'
+        arguments: '--configuration $(BuildConfiguration)'
+    - task: DotNetCoreCLI@2
+      inputs:
+        command: 'test'
+        projects: 'tests/PgNet.Tests/PgNet.Tests.csproj'
+        arguments: '--configuration $(BuildConfiguration)'
+ 
+- stage: RunIntegrationTests
+  displayName: Run integration tests
+  jobs:
+  - job:
+    services:
+      postgres: pg12
 
-steps:
-- task: DotNetCoreCLI@2
-  inputs:
-    command: 'build'
-    configuration: '$(BuildConfiguration)'
+
+
+
