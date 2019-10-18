@@ -56,7 +56,7 @@ stages:
     - task: DownloadPipelineArtifact@2
       inputs:
         buildType: 'current'
-        itemPattern: 'tests/PgNet.IntegrationTests/**'
+        itemPattern: 'tests/PgNet.IntegrationTests/**/*'
         targetPath: '$(Pipeline.Workspace)/PgNet.IntegrationTests'
 
 
