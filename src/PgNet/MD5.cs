@@ -7,6 +7,9 @@ namespace PgNet
 {
     internal sealed class MD5
     {
+        public const int MD5HashByteSize = 16;
+        public const int MD5HashHexByteSize = MD5HashByteSize * 2;
+
         private const int MD5_S11 = 7;
         private const int MD5_S12 = 12;
         private const int MD5_S13 = 17;
@@ -44,12 +47,17 @@ namespace PgNet
             var length = source.Length * 8;
 
             //We pass in the input array by block, the final block of data must be handled specialy for padding & length embeding
-            while (source.Length >= 64)
+            var originalSource = source;
+            var i = 0;
+            while (i <= originalSource.Length - 64)
             {
-                source = source.Slice(0, 64);
+                source = originalSource.Slice(i, 64);
                 Transform(ref state, source);
+                
+                i += 64;
             }
 
+            source = originalSource.Slice(i);
             HashFinal(state, source, destination, length, working);
         }
 

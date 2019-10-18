@@ -1,13 +1,12 @@
 using System;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace PgNet
 {
-    public static class PgMD5Helper
+    internal static class PgMD5Helper
     {
-        private const int MD5HashSize = 16;
-        private const int MD5HashHexSize = MD5HashSize * 2;
+        private const int MD5HashSize = MD5.MD5HashByteSize;
+        private const int MD5HashHexSize = MD5.MD5HashHexByteSize;
 
         private static readonly Encoding s_utf8Encoding = Encoding.UTF8;
         private static readonly byte[] s_md5DeclarationBytes = s_utf8Encoding.GetBytes("md5");

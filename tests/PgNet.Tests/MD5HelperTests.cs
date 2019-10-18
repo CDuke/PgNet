@@ -1,5 +1,4 @@
 using System;
-using System.Security.Cryptography;
 using System.Text;
 using Xunit;
 
@@ -25,7 +24,7 @@ namespace PgNet.IntegrationTests
         private byte[] CalcHash(string userName, string passwd, byte[] salt)
         {
             byte[] result;
-            using (var md5 = MD5.Create())
+            using (var md5 = System.Security.Cryptography.MD5.Create())
             {
                 // First phase
                 var passwordBytes = Encoding.UTF8.GetBytes(passwd);

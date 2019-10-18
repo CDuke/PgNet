@@ -5,7 +5,9 @@ VisualStudioVersion = 16.0.29403.142
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PgNet", "src\PgNet\PgNet.csproj", "{CD0818FB-E4A7-4A3C-BCC5-3646E370B463}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PgNet.IntegrationTests", "tests\PgNet.IntegrationTests\PgNet.IntegrationTests.csproj", "{601CA761-716B-4B13-A34F-476F0BAEAB6A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PgNet.IntegrationTests", "tests\PgNet.IntegrationTests\PgNet.IntegrationTests.csproj", "{601CA761-716B-4B13-A34F-476F0BAEAB6A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PgNet.Tests", "tests\PgNet.Tests\PgNet.Tests.csproj", "{F95239F5-9C94-4611-8FD6-6190BDA79D41}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{601CA761-716B-4B13-A34F-476F0BAEAB6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{601CA761-716B-4B13-A34F-476F0BAEAB6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{601CA761-716B-4B13-A34F-476F0BAEAB6A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F95239F5-9C94-4611-8FD6-6190BDA79D41}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F95239F5-9C94-4611-8FD6-6190BDA79D41}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F95239F5-9C94-4611-8FD6-6190BDA79D41}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F95239F5-9C94-4611-8FD6-6190BDA79D41}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
