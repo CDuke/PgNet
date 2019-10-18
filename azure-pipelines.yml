@@ -59,14 +59,13 @@ stages:
         itemPattern: 'drop/tests/PgNet.IntegrationTests/**'
         targetPath: '$(Pipeline.Workspace)/PgNet.IntegrationTests'
 
-    - task: VSTest@2
+    - task: DotNetCoreCLI@2
       inputs:
-        testSelector: 'testAssemblies'
-        testAssemblyVer2: |
-          **\PgNet*Tests.dll
-          !**\*TestAdapter.dll
-          !**\obj\**
-        searchFolder: '$(Pipeline.Workspace)'
+        command: 'custom'
+        custom: 'vstest'
+        arguments: '**\\PgNet*Tests.dll'
+
+
 
     
 
