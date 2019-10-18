@@ -63,7 +63,7 @@ stages:
       inputs:
         command: 'custom'
         custom: 'vstest'
-        arguments: '**/PgNet*Tests.dll'
+        arguments: '$(Pipeline.Workspace)/**/PgNet.IntegrationTests.dll'
 
 
 
