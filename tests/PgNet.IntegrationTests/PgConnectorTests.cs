@@ -1,3 +1,4 @@
+using System;
 using System.Buffers;
 using System.Text;
 using System.Threading;
@@ -11,9 +12,11 @@ namespace PgNet.IntegrationTests
         [Fact]
         public async Task ConnectTest()
         {
+            var host = Environment.GetEnvironmentVariable("PG_TEST_HOST");
+            host ??= "localhost";
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             await using var connector = new PgConnector(ArrayPool<byte>.Shared);
-            await connector.OpenAsync("localhost", "postgres", "postgres", "admin", CancellationToken.None);
+            await connector.OpenAsync(host, "postgres", "postgres", "admin", CancellationToken.None);
         }
     }
 }
