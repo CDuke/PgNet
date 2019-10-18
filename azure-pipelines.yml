@@ -9,6 +9,7 @@ resources:
     image: postgres:12
     ports:
     - 5432:5432
+    options: -e POSTGRES_PASSWORD=admin
 
 trigger:
 - master
