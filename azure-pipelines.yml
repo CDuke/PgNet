@@ -7,6 +7,8 @@ resources:
   containers:
   - container: pg12
     image: postgres:12
+    ports:
+    - 5432:5432
 
 trigger:
 - master
