@@ -37,6 +37,8 @@ stages:
   - job:
     services:
       postgres: pg12
+    steps:
+    - checkout: none
 
 
 
