@@ -25,11 +25,18 @@ stages:
       inputs:
         command: 'build'
         arguments: '--configuration $(BuildConfiguration)'
+
     - task: DotNetCoreCLI@2
       inputs:
         command: 'test'
         projects: 'tests/PgNet.Tests/PgNet.Tests.csproj'
         arguments: '--configuration $(BuildConfiguration)'
+    
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'drop'
+        publishLocation: 'Container'
  
 - stage: RunIntegrationTests
   displayName: Run integration tests
