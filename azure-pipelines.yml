@@ -7,6 +7,9 @@ resources:
   containers:
   - container: pg12
     image: postgres:12
+    ports:
+    - 5432:5432
+    options: -e POSTGRES_PASSWORD=admin
 
 trigger:
 - master
@@ -63,7 +66,15 @@ stages:
       inputs:
         command: 'custom'
         custom: 'vstest'
-        arguments: '$(Pipeline.Workspace)/**/PgNet.IntegrationTests.dll'
+        arguments: '$(Pipeline.Workspace)/**/PgNet.IntegrationTests.dll /logger:trx'
+
+    - task: PublishTestResults@2
+      condition: succeededOrFailed()
+      inputs:
+        testRunner: VSTest
+        testResultsFiles: '**/*.trx'
+
+    
 
 
 
