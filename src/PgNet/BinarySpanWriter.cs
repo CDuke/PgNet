@@ -30,6 +30,22 @@ namespace PgNet
             m_position += count + 1;
         }
 
+        public void WriteNullTerminateString(ReadOnlyMemory<char> s, Encoding encoding)
+        {
+            var slice = m_span.Slice(m_position);
+            var count = encoding.GetBytes(s.Span, slice);
+            slice[count] = 0;
+            m_position += count + 1;
+        }
+
+        public void WriteNullTerminateString(ReadOnlySpan<char> s, Encoding encoding)
+        {
+            var slice = m_span.Slice(m_position);
+            var count = encoding.GetBytes(s, slice);
+            slice[count] = 0;
+            m_position += count + 1;
+        }
+
         public void WriteBytes(byte[] bytes)
         {
             bytes.CopyTo(m_span.Slice(m_position));

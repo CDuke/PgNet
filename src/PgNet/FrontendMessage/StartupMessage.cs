@@ -5,18 +5,18 @@ namespace PgNet.FrontendMessage
 {
     internal struct StartupMessage : IFrontendMessageWriter
     {
-        private static Encoding s_utf8Encoding = Encoding.UTF8;
+        private static readonly Encoding s_utf8Encoding = Encoding.UTF8;
         private const int ProtocolVersion3 = 3 << 16; // 196608
 
-        private static byte[] s_databaseParameterName = s_utf8Encoding.GetBytes("database");
-        private static byte[] s_userParameterName = s_utf8Encoding.GetBytes("user");
-        private static byte[] s_clientEncodingParameterName = s_utf8Encoding.GetBytes("client_encoding");
-        private static byte[] s_clientEncodingDefaultParameterValue = s_utf8Encoding.GetBytes("UTF8");
-        private static byte[] s_applicationNameParameterName = s_utf8Encoding.GetBytes("application_name");
-        private static byte[] s_fallbackApplicationNameParameterName = s_utf8Encoding.GetBytes("fallback_application_name");
+        private static readonly byte[] s_databaseParameterName = s_utf8Encoding.GetBytes("database");
+        private static readonly byte[] s_userParameterName = s_utf8Encoding.GetBytes("user");
+        private static readonly byte[] s_clientEncodingParameterName = s_utf8Encoding.GetBytes("client_encoding");
+        private static readonly byte[] s_clientEncodingDefaultParameterValue = s_utf8Encoding.GetBytes("UTF8");
+        private static readonly byte[] s_applicationNameParameterName = s_utf8Encoding.GetBytes("application_name");
+        private static readonly byte[] s_fallbackApplicationNameParameterName = s_utf8Encoding.GetBytes("fallback_application_name");
 
-        private static byte[] s_searchPathParameterName = s_utf8Encoding.GetBytes("search_path");
-        private static byte[] s_timeZoneParameterName = s_utf8Encoding.GetBytes("TimeZone");
+        private static readonly byte[] s_searchPathParameterName = s_utf8Encoding.GetBytes("search_path");
+        private static readonly byte[] s_timeZoneParameterName = s_utf8Encoding.GetBytes("TimeZone");
 
         private string m_database;
         private string m_user;

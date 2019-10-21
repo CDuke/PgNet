@@ -75,6 +75,77 @@ namespace PgNet
             }
         }
 
+        public ValueTask<int> SendQueryAsync(string query, CancellationToken cancellationToken)
+        {
+            return SendQueryAsync(query.AsMemory(), cancellationToken);
+        }
+
+        public async ValueTask<int> SendQueryAsync(ReadOnlyMemory<char> query, CancellationToken cancellationToken)
+        {
+            var w = new Query(query);
+            var sendRequestTask = WriteAndSendMessage(w, cancellationToken);
+            if (!sendRequestTask.IsCompletedSuccessfully)
+            {
+                await sendRequestTask.ConfigureAwait(false);
+            }
+
+            var receiveBufferArray = m_arrayPool.Rent(512);
+            var receiveBuffer = new Memory<byte>(receiveBufferArray);
+            var receiveTask = m_socket.ReceiveAsync(receiveBuffer, SocketFlags.None, cancellationToken);
+            int receiveCount;
+            if (!receiveTask.IsCompletedSuccessfully)
+            {
+                receiveCount = await receiveTask.ConfigureAwait(false);
+            }
+            else
+            {
+                receiveCount = receiveTask.Result;
+            }
+
+            var temp = receiveBuffer.Slice(0, receiveCount);
+            while (temp.Length > 0)
+            {
+                var responseCode = temp.Span[0];
+                switch (responseCode)
+                {
+                    case BackendMessageCode.CompletedResponse:
+                        var completedRespose = new CommandComplete(temp);
+                        temp = temp.Slice(completedRespose.Length + 1);
+                        break;
+                    case BackendMessageCode.CopyInResponse:
+                        ThrowHelper.ThrowNotImplementedException();
+                        break;
+                    case BackendMessageCode.CopyOutResponse:
+                        ThrowHelper.ThrowNotImplementedException();
+                        break;
+                    case BackendMessageCode.RowDescription:
+                        var rowDescription = new RowDescription(temp);
+                        temp = temp.Slice(rowDescription.Length + 1);
+                        break;
+                    case BackendMessageCode.DataRow:
+                        var dataRow = new DataRow(temp);
+                        temp = temp.Slice(dataRow.Length + 1);
+                        break;
+                    case BackendMessageCode.EmptyQueryResponse:
+                        ThrowHelper.ThrowNotImplementedException();
+                        break;
+                    case BackendMessageCode.ErrorResponse:
+                        ThrowHelper.ThrowNotImplementedException();
+                        break;
+                    case BackendMessageCode.ReadyForQuery:
+                        var readyForQuery = new ReadyForQuery(temp);
+                        temp = temp.Slice(readyForQuery.Length + 1);
+                        break;
+                    case BackendMessageCode.NoticeResponse:
+                        ThrowHelper.ThrowNotImplementedException();
+                        break;
+                }
+            }
+
+            //ThrowHelper.ThrowNotImplementedException();
+            return 0;
+        }
+
         private static async ValueTask<Socket> ConnectAsync(string host, CancellationToken cancellationToken)
         {
             var endpointsTask = ParseHost(host, cancellationToken);
@@ -318,6 +389,36 @@ namespace PgNet
 
             writer.Write(message);
             return socket.SendAsync(message, SocketFlags.None, cancellationToken);
+        }
+
+        private async ValueTask<int> WriteAndSendMessage<T>(T writer, 
+            CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
+        {
+            byte[]? sendBufferBytes = null;
+            try
+            {
+                var messageLength = writer.CalculateLength();
+                sendBufferBytes = m_arrayPool.Rent(messageLength);
+                var sendBuffer = new Memory<byte>(sendBufferBytes);
+                var message = sendBuffer.Slice(0, messageLength);
+
+                writer.Write(message);
+                var sendAsyncTask = m_socket.SendAsync(message, SocketFlags.None, cancellationToken);
+
+                if (!sendAsyncTask.IsCompletedSuccessfully)
+                {
+                    return await sendAsyncTask.ConfigureAwait(false);
+                }
+                else
+                {
+                    return sendAsyncTask.Result;
+                }
+            }
+            finally
+            {
+                if (sendBufferBytes != null)
+                    m_arrayPool.Return(sendBufferBytes);
+            }
         }
 
         private ValueTask<int> SendSimpleMessage<T>(T sender, CancellationToken cancellationToken) where T : struct, IFrontendMessageSender
