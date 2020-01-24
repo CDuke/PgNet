@@ -2,18 +2,15 @@ using System;
 
 namespace PgNet.FrontendMessage
 {
-    internal struct CancelRequest
+    internal readonly struct CancelRequest : IFrontendMessageWriter
     {
-        private int m_processId;
-        private int m_secretKey;
+        private const int CancelRequestCode = 80877102;
+        private readonly int m_processId;
+        private readonly int m_secretKey;
 
-        public void SetProcessId(int processId)
+        public CancelRequest(int processId, int secretKey)
         {
             m_processId = processId;
-        }
-
-        public void SetSecretKey(int secretKey)
-        {
             m_secretKey = secretKey;
         }
 
@@ -26,7 +23,7 @@ namespace PgNet.FrontendMessage
         {
             var w = new BinarySpanWriter(buffer.Span);
             w.WriteInt32(16);
-            w.WriteInt32(80877102);
+            w.WriteInt32(CancelRequestCode);
             w.WriteInt32(m_processId);
             w.WriteInt32(m_secretKey);
         }

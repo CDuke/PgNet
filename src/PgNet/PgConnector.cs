@@ -11,6 +11,14 @@ namespace PgNet
 {
     public sealed class PgConnector : IAsyncDisposable
     {
+        private class ConnectionInfo
+        {
+            public string Host;
+            public string Database;
+            public string UserName;
+            public string Password;
+        }
+
         private const int SocketCloseTimeoutDefault = 5; // 5 seconds
 
         private readonly ArrayPool<byte> m_arrayPool;
@@ -22,6 +30,8 @@ namespace PgNet
         private int m_secretKey;
 
         private byte m_transactionStatus;
+
+        private ConnectionInfo m_connectionInfo;
 
         private static readonly ValueTask<IPAddress[]> s_loopback = new ValueTask<IPAddress[]>(new[] {IPAddress.Loopback});
 
@@ -62,6 +72,13 @@ namespace PgNet
                 }
                 
                 m_connectorState = ConnectorState.ReadyForQuery;
+
+                m_connectionInfo = new ConnectionInfo();
+                m_connectionInfo.Host = host;
+                m_connectionInfo.Database = database;
+                m_connectionInfo.UserName = userName;
+                m_connectionInfo.Password = password;
+
                 m_socket = socket;
             }
             finally
@@ -137,6 +154,24 @@ namespace PgNet
 
             //ThrowHelper.ThrowNotImplementedException();
             return 0;
+        }
+
+        public async ValueTask Cancel(CancellationToken cancellationToken)
+        {
+            if (m_processId == 0)
+                throw new PostgresException("Cancellation not supported on this database (no BackendKeyData was received during connection)");
+
+            var connectionInfo = m_connectionInfo;
+            await using var connector = new PgConnector(m_arrayPool);
+            var openTask = connector.OpenAsync(connectionInfo.Host, connectionInfo.Database, connectionInfo.UserName,
+                connectionInfo.Password, cancellationToken);
+            if (!openTask.IsCompletedSuccessfully)
+                await openTask;
+            var cancelRequest = new CancelRequest(m_processId, m_secretKey);
+            var sendTask = connector.WriteAndSendMessage(cancelRequest, cancellationToken);
+            if (sendTask.IsCompletedSuccessfully)
+                await sendTask;
+
         }
 
         private static async ValueTask<Socket> ConnectAsync(string host, CancellationToken cancellationToken)
@@ -328,14 +363,14 @@ namespace PgNet
             }
         }
 
-        private ValueTask<int> AuthenticateClearText(string password, Socket socket,
+        private static ValueTask<int> AuthenticateClearText(string password, Socket socket,
             Memory<byte> sendBuffer, CancellationToken cancellationToken)
         {
             var w = new PasswordCleartext(password);
             return WriteAndSendMessage(w, socket, sendBuffer, cancellationToken);
         }
 
-        private ValueTask<int> AuthenticateMD5(ReadOnlyMemory<byte> salt, string user, string password,
+        private static ValueTask<int> AuthenticateMD5(ReadOnlyMemory<byte> salt, string user, string password,
             Socket socket, Memory<byte> sendBuffer, CancellationToken cancellationToken)
         {
             var w = new PasswordMD5Message(user, password, salt);
@@ -366,8 +401,8 @@ namespace PgNet
             CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
         {
             var messageLength = writer.CalculateLength();
-            var message = sendBuffer.Slice(0, messageLength);
 
+            var message = sendBuffer.Slice(0, messageLength);
             writer.Write(message);
             return socket.SendAsync(message, SocketFlags.None, cancellationToken);
         }
@@ -381,8 +416,8 @@ namespace PgNet
                 var messageLength = writer.CalculateLength();
                 sendBufferBytes = m_arrayPool.Rent(messageLength);
                 var sendBuffer = new Memory<byte>(sendBufferBytes);
-                var message = sendBuffer.Slice(0, messageLength);
 
+                var message = sendBuffer.Slice(0, messageLength);
                 writer.Write(message);
                 var sendAsyncTask = m_socket.SendAsync(message, SocketFlags.None, cancellationToken);
 
