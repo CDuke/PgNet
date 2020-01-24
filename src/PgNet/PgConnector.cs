@@ -11,6 +11,8 @@ namespace PgNet
 {
     public sealed class PgConnector : IAsyncDisposable
     {
+        private const int SocketCloseTimeoutDefault = 5; // 5 seconds
+
         private readonly ArrayPool<byte> m_arrayPool;
         private const int PostgreSQLDefaultPort = 5432;
         private Socket? m_socket;
@@ -34,15 +36,9 @@ namespace PgNet
         {
             m_connectorState = ConnectorState.Connecting;
             var socketTask = ConnectAsync(host, cancellationToken);
-            Socket socket;
-            if (socketTask.IsCompletedSuccessfully)
-            {
-                socket = socketTask.Result;
-            }
-            else
-            {
-                socket = await socketTask.ConfigureAwait(false);
-            }
+            var socket = socketTask.IsCompletedSuccessfully
+                ? socketTask.Result
+                : await socketTask.ConfigureAwait(false);
 
             var sendBufferBytes = m_arrayPool.Rent(512);
             var receiveBufferBytes = m_arrayPool.Rent(512);
@@ -92,15 +88,9 @@ namespace PgNet
             var receiveBufferArray = m_arrayPool.Rent(512);
             var receiveBuffer = new Memory<byte>(receiveBufferArray);
             var receiveTask = m_socket.ReceiveAsync(receiveBuffer, SocketFlags.None, cancellationToken);
-            int receiveCount;
-            if (!receiveTask.IsCompletedSuccessfully)
-            {
-                receiveCount = await receiveTask.ConfigureAwait(false);
-            }
-            else
-            {
-                receiveCount = receiveTask.Result;
-            }
+            var receiveCount = !receiveTask.IsCompletedSuccessfully
+                ? await receiveTask.ConfigureAwait(false)
+                : receiveTask.Result;
 
             var temp = receiveBuffer.Slice(0, receiveCount);
             while (temp.Length > 0)
@@ -109,8 +99,8 @@ namespace PgNet
                 switch (responseCode)
                 {
                     case BackendMessageCode.CompletedResponse:
-                        var completedRespose = new CommandComplete(temp);
-                        temp = temp.Slice(completedRespose.Length + 1);
+                        var completedResponse = new CommandComplete(temp);
+                        temp = temp.Slice(completedResponse.Length + 1);
                         break;
                     case BackendMessageCode.CopyInResponse:
                         ThrowHelper.ThrowNotImplementedException();
@@ -139,6 +129,9 @@ namespace PgNet
                     case BackendMessageCode.NoticeResponse:
                         ThrowHelper.ThrowNotImplementedException();
                         break;
+                    default:
+                        ThrowHelper.ThrowNotImplementedException();
+                        break;
                 }
             }
 
@@ -149,15 +142,9 @@ namespace PgNet
         private static async ValueTask<Socket> ConnectAsync(string host, CancellationToken cancellationToken)
         {
             var endpointsTask = ParseHost(host, cancellationToken);
-            IPAddress[] endpoints;
-            if (endpointsTask.IsCompletedSuccessfully)
-            {
-                endpoints = endpointsTask.Result;
-            }
-            else
-            {
-                endpoints = await endpointsTask.ConfigureAwait(false);
-            }
+            var endpoints = endpointsTask.IsCompletedSuccessfully
+                ? endpointsTask.Result
+                : await endpointsTask.ConfigureAwait(false);
 
             foreach (var ipAddress in endpoints)
             {
@@ -195,7 +182,7 @@ namespace PgNet
             return new ValueTask<IPAddress[]>(Dns.GetHostAddressesAsync(host));
         }
 
-        private ValueTask<int> SendStartupMessage(Socket socket, Memory<byte> sendBuffer, string database, string userName,
+        private static ValueTask<int> SendStartupMessage(Socket socket, Memory<byte> sendBuffer, string database, string userName,
             CancellationToken cancellationToken)
         {
             var startupMessage = new StartupMessage();
@@ -209,15 +196,9 @@ namespace PgNet
             string userName, string password, CancellationToken cancellationToken)
         {
             var receiveAsyncTask = socket.ReceiveAsync(receiveBuffer, SocketFlags.None, cancellationToken);
-            int receiveAsync;
-            if (receiveAsyncTask.IsCompletedSuccessfully)
-            {
-                receiveAsync = receiveAsyncTask.Result;
-            }
-            else
-            {
-                receiveAsync = await receiveAsyncTask.ConfigureAwait(false);
-            }
+            var receiveAsync = receiveAsyncTask.IsCompletedSuccessfully
+                ? receiveAsyncTask.Result
+                : await receiveAsyncTask.ConfigureAwait(false);
 
 
             if (receiveAsync > 0)
@@ -405,14 +386,9 @@ namespace PgNet
                 writer.Write(message);
                 var sendAsyncTask = m_socket.SendAsync(message, SocketFlags.None, cancellationToken);
 
-                if (!sendAsyncTask.IsCompletedSuccessfully)
-                {
-                    return await sendAsyncTask.ConfigureAwait(false);
-                }
-                else
-                {
-                    return sendAsyncTask.Result;
-                }
+                return !sendAsyncTask.IsCompletedSuccessfully
+                    ? await sendAsyncTask.ConfigureAwait(false)
+                    : sendAsyncTask.Result;
             }
             finally
             {
@@ -423,9 +399,9 @@ namespace PgNet
 
         private ValueTask<int> SendSimpleMessage<T>(T sender, CancellationToken cancellationToken) where T : struct, IFrontendMessageSender
         {
-            if (m_socket != null)
-                return sender.Send(m_socket, cancellationToken);
-            return new ValueTask<int>(0);
+            return m_socket != null
+                ? sender.Send(m_socket, cancellationToken)
+                : new ValueTask<int>(0);
         }
 
         private static void SetSocketOptions(Socket socket)
@@ -437,7 +413,7 @@ namespace PgNet
         {
             await SendSimpleMessage(new Terminate(), cancellationToken);
             m_socket?.Shutdown(SocketShutdown.Both);
-            m_socket?.Close();
+            m_socket?.Close(SocketCloseTimeoutDefault);
         }
 
         public async ValueTask DisposeAsync()
