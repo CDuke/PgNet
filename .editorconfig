@@ -135,5 +135,10 @@ csharp_space_between_square_brackets = false
 indent_size = 2
 
 # Xml config files
+
+# Dotnet diagnostics
+# CA2007: Consider calling ConfigureAwait on the awaited task
+dotnet_diagnostic.CA2007.severity = error
+
 [*.{props,targets,config,nuspec}]
 indent_size = 2

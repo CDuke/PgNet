@@ -166,15 +166,17 @@ namespace PgNet
             var openTask = connector.OpenAsync(connectionInfo.Host, connectionInfo.Database, connectionInfo.UserName,
                 connectionInfo.Password, cancellationToken);
             if (!openTask.IsCompletedSuccessfully)
-                await openTask;
+                await openTask.ConfigureAwait(false);
             var cancelRequest = new CancelRequest(m_processId, m_secretKey);
             var sendTask = connector.WriteAndSendMessage(cancelRequest, cancellationToken);
             if (sendTask.IsCompletedSuccessfully)
-                await sendTask;
+                await sendTask.ConfigureAwait(false);
 
             // Now wait for the server to close the connection, better chance of the cancellation
             // actually being delivered before we continue with the user's logic.
-            await connector.WaitForDisconnect(cancellationToken);
+            var waitTask = connector.WaitForDisconnect(cancellationToken);
+            if (waitTask.IsCompletedSuccessfully)
+                await waitTask.ConfigureAwait(false);
 
         }
 
@@ -185,7 +187,7 @@ namespace PgNet
             {
                 sendBufferBytes = m_arrayPool.Rent(1);
                 var sendBuffer = new Memory<byte>(sendBufferBytes);
-                var receiveCount = await m_socket.ReceiveAsync(sendBuffer, SocketFlags.None, cancellationToken);
+                var receiveCount = await m_socket.ReceiveAsync(sendBuffer, SocketFlags.None, cancellationToken).ConfigureAwait(false);
                 if (receiveCount > 0)
                 {
                     return false;
@@ -480,14 +482,18 @@ namespace PgNet
 
         public async ValueTask CloseAsync(int socketCloseTimeoutSeconds, CancellationToken cancellationToken)
         {
-            await SendSimpleMessage(new Terminate(), cancellationToken);
+            var sentSimpleMessageTask = SendSimpleMessage(new Terminate(), cancellationToken);
+            if (!sentSimpleMessageTask.IsCompletedSuccessfully)
+                await sentSimpleMessageTask.ConfigureAwait(false);
             m_socket?.Shutdown(SocketShutdown.Both);
             m_socket?.Close(socketCloseTimeoutSeconds);
         }
 
         public async ValueTask DisposeAsync()
         {
-            await CloseAsync(SocketCloseTimeoutDefault, CancellationToken.None);
+            var closeTask = CloseAsync(SocketCloseTimeoutDefault, CancellationToken.None);
+            if (!closeTask.IsCompletedSuccessfully)
+                await closeTask.ConfigureAwait(false);
             m_socket?.Dispose();
             m_socket = null;
         }

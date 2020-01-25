@@ -1,9 +1,12 @@
+using System;
+using System.Globalization;
+
 namespace PgNet.Logging
 {
     /// <summary>
     /// Identifies a logging event. The primary identifier is the "Id" property, with the "Name" property providing a short description of this type of event.
     /// </summary>
-    public readonly struct EventId
+    public readonly struct EventId : IEquatable<EventId>
     {
         /// <summary>
         /// Implicitly creates an EventId from the given <see cref="int"/>.
@@ -60,7 +63,7 @@ namespace PgNet.Logging
         /// <inheritdoc />
         public override string ToString()
         {
-            return Name ?? Id.ToString();
+            return Name ?? Id.ToString(CultureInfo.InvariantCulture);
         }
 
         /// <summary>
