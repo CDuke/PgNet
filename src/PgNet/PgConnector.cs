@@ -172,6 +172,40 @@ namespace PgNet
             if (sendTask.IsCompletedSuccessfully)
                 await sendTask;
 
+            // Now wait for the server to close the connection, better chance of the cancellation
+            // actually being delivered before we continue with the user's logic.
+            await connector.WaitForDisconnect(cancellationToken);
+
+        }
+
+        private async ValueTask<bool> WaitForDisconnect(CancellationToken cancellationToken)
+        {
+            byte[]? sendBufferBytes = null;
+            try
+            {
+                sendBufferBytes = m_arrayPool.Rent(1);
+                var sendBuffer = new Memory<byte>(sendBufferBytes);
+                var receiveCount = await m_socket.ReceiveAsync(sendBuffer, SocketFlags.None, cancellationToken);
+                if (receiveCount > 0)
+                {
+                    return false;
+                }
+
+                return true;
+            }
+            catch (SocketException socketException) when (socketException.SocketErrorCode == SocketError.ConnectionReset)
+            {
+                return true;
+            }
+            catch (SocketException)
+            {
+                return false;
+            }
+            finally
+            {
+                if (sendBufferBytes != null)
+                    m_arrayPool.Return(sendBufferBytes);
+            }
         }
 
         private static async ValueTask<Socket> ConnectAsync(string host, CancellationToken cancellationToken)
@@ -444,16 +478,16 @@ namespace PgNet
             socket.NoDelay = true;
         }
 
-        public async ValueTask CloseAsync(CancellationToken cancellationToken)
+        public async ValueTask CloseAsync(int socketCloseTimeoutSeconds, CancellationToken cancellationToken)
         {
             await SendSimpleMessage(new Terminate(), cancellationToken);
             m_socket?.Shutdown(SocketShutdown.Both);
-            m_socket?.Close(SocketCloseTimeoutDefault);
+            m_socket?.Close(socketCloseTimeoutSeconds);
         }
 
         public async ValueTask DisposeAsync()
         {
-            await CloseAsync(CancellationToken.None);
+            await CloseAsync(SocketCloseTimeoutDefault, CancellationToken.None);
             m_socket?.Dispose();
             m_socket = null;
         }
