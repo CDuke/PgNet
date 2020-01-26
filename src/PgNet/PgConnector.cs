@@ -144,7 +144,8 @@ namespace PgNet
                         temp = temp.Slice(readyForQuery.Length + 1);
                         break;
                     case BackendMessageCode.NoticeResponse:
-                        ThrowHelper.ThrowNotImplementedException();
+                        var noticeResponse = new NoticeResponse(temp, ArrayPool<ErrorOrNoticeResponseField>.Shared);
+                        temp = temp.Slice(noticeResponse.Length + 1);
                         break;
                     default:
                         ThrowHelper.ThrowNotImplementedException();

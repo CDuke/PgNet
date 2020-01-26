@@ -55,7 +55,8 @@ namespace PgNet
 
         private void Grow()
         {
-            var array = ArrayPool<T>.Shared.Rent(m_span.Length * 2);
+            var rentSize = m_span.Length == 0 ? 2 : m_span.Length * 2;
+            var array = ArrayPool<T>.Shared.Rent(rentSize * 2);
 
             _ = m_span.TryCopyTo(array);
 
