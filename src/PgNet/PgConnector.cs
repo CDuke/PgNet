@@ -472,11 +472,17 @@ namespace PgNet
             return socket.SendAsync(message, SocketFlags.None, cancellationToken);
         }
 
-        private ValueTask<int> SendSimpleMessage<T>(T sender, CancellationToken cancellationToken) where T : struct, IFrontendMessageSender
+        /*private ValueTask<int> SendSimpleMessage<T>(T sender, CancellationToken cancellationToken) where T : struct, IFrontendMessageSender
         {
             return m_socket != null
                 ? sender.Send(m_socket, cancellationToken)
                 : new ValueTask<int>(0);
+        }*/
+
+        private ValueTask<int> SendSimpleMessage<T>(T knownMessage, CancellationToken cancellationToken) where T : struct, IKnownFrontendMessage
+        {
+            var m = knownMessage.GetMessage();
+            return m_socket?.SendAsync(m, SocketFlags.None, cancellationToken) ?? new ValueTask<int>(0);
         }
 
         private static void SetSocketOptions(Socket socket)

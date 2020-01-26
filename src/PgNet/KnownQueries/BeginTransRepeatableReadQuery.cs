@@ -1,14 +1,11 @@
 using System;
-using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
 using PgNet.FrontendMessage;
 
 namespace PgNet.KnownQueries
 {
-    internal readonly struct BeginTransRepeatableReadQuery : IFrontendMessageSender
+    internal readonly struct BeginTransRepeatableReadQuery : IKnownFrontendMessage
     {
-        private static readonly ReadOnlyMemory<byte> m_message = new ReadOnlyMemory<byte>(new byte[]
+        private static readonly ReadOnlyMemory<byte> s_message = new ReadOnlyMemory<byte>(new byte[]
         {
             FrontendMessageCode.Query, sizeof(int) + 37 + 1,
             (byte)'B', (byte)'E', (byte)'G', (byte)'I', (byte)'N', (byte)' ',
@@ -18,9 +15,9 @@ namespace PgNet.KnownQueries
             (byte)'R', (byte)'E', (byte)'A', (byte)'D', 0
         });
 
-        public ValueTask<int> Send(Socket socket, CancellationToken cancellationToken)
+        public ReadOnlyMemory<byte> GetMessage()
         {
-            return socket.SendAsync(m_message, SocketFlags.None, cancellationToken);
+            return s_message;
         }
     }
 }
