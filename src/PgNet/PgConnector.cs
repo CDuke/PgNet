@@ -438,13 +438,10 @@ namespace PgNet
             CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
         {
             var messageLength = writer.CalculateLength();
-
-            var message = sendBuffer.Slice(0, messageLength);
-            writer.Write(message);
-            return socket.SendAsync(message, SocketFlags.None, cancellationToken);
+            return WriteAndSendMessage(writer, socket, sendBuffer, messageLength, cancellationToken);
         }
 
-        private async ValueTask<int> WriteAndSendMessage<T>(T writer, 
+        private async ValueTask<int> WriteAndSendMessage<T>(T writer,
             CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
         {
             byte[]? sendBufferBytes = null;
@@ -454,9 +451,7 @@ namespace PgNet
                 sendBufferBytes = m_arrayPool.Rent(messageLength);
                 var sendBuffer = new Memory<byte>(sendBufferBytes);
 
-                var message = sendBuffer.Slice(0, messageLength);
-                writer.Write(message);
-                var sendAsyncTask = m_socket.SendAsync(message, SocketFlags.None, cancellationToken);
+                var sendAsyncTask = WriteAndSendMessage(writer, m_socket, sendBuffer, messageLength, cancellationToken);
 
                 return !sendAsyncTask.IsCompletedSuccessfully
                     ? await sendAsyncTask.ConfigureAwait(false)
@@ -467,6 +462,14 @@ namespace PgNet
                 if (sendBufferBytes != null)
                     m_arrayPool.Return(sendBufferBytes);
             }
+        }
+
+        private static ValueTask<int> WriteAndSendMessage<T>(T writer, Socket socket, Memory<byte> sendBuffer, int messageLength,
+            CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
+        {
+            var message = sendBuffer.Slice(0, messageLength);
+            writer.Write(message);
+            return socket.SendAsync(message, SocketFlags.None, cancellationToken);
         }
 
         private ValueTask<int> SendSimpleMessage<T>(T sender, CancellationToken cancellationToken) where T : struct, IFrontendMessageSender
