@@ -96,61 +96,80 @@ namespace PgNet
         public async ValueTask<int> SendQueryAsync(ReadOnlyMemory<char> query, CancellationToken cancellationToken)
         {
             var w = new Query(query);
-            var sendRequestTask = WriteAndSendMessage(w, cancellationToken);
+            var socket = m_socket!;
+            var sendRequestTask = WriteAndSendMessage(socket, w, cancellationToken);
             if (!sendRequestTask.IsCompletedSuccessfully)
             {
                 await sendRequestTask.ConfigureAwait(false);
             }
 
-            var receiveBufferArray = m_arrayPool.Rent(512);
-            var receiveBuffer = new Memory<byte>(receiveBufferArray);
-            var receiveTask = m_socket.ReceiveAsync(receiveBuffer, SocketFlags.None, cancellationToken);
-            var receiveCount = !receiveTask.IsCompletedSuccessfully
-                ? await receiveTask.ConfigureAwait(false)
-                : receiveTask.Result;
-
-            var temp = receiveBuffer.Slice(0, receiveCount);
-            while (temp.Length > 0)
+            byte[]? receiveBufferArray = null;
+            try
             {
-                var responseCode = temp.Span[0];
-                switch (responseCode)
+                receiveBufferArray = m_arrayPool.Rent(512);
+                var receiveBuffer = new Memory<byte>(receiveBufferArray);
+                var doReceive = true;
+                while (doReceive)
                 {
-                    case BackendMessageCode.CompletedResponse:
-                        var completedResponse = new CommandComplete(temp);
-                        temp = temp.Slice(completedResponse.Length + 1);
-                        break;
-                    case BackendMessageCode.CopyInResponse:
-                        ThrowHelper.ThrowNotImplementedException();
-                        break;
-                    case BackendMessageCode.CopyOutResponse:
-                        ThrowHelper.ThrowNotImplementedException();
-                        break;
-                    case BackendMessageCode.RowDescription:
-                        var rowDescription = new RowDescription(temp);
-                        temp = temp.Slice(rowDescription.Length + 1);
-                        break;
-                    case BackendMessageCode.DataRow:
-                        var dataRow = new DataRow(temp);
-                        temp = temp.Slice(dataRow.Length + 1);
-                        break;
-                    case BackendMessageCode.EmptyQueryResponse:
-                        ThrowHelper.ThrowNotImplementedException();
-                        break;
-                    case BackendMessageCode.ErrorResponse:
-                        ThrowHelper.ThrowNotImplementedException();
-                        break;
-                    case BackendMessageCode.ReadyForQuery:
-                        var readyForQuery = new ReadyForQuery(temp);
-                        temp = temp.Slice(readyForQuery.Length + 1);
-                        break;
-                    case BackendMessageCode.NoticeResponse:
-                        var noticeResponse = new NoticeResponse(temp, ArrayPool<ErrorOrNoticeResponseField>.Shared);
-                        temp = temp.Slice(noticeResponse.Length + 1);
-                        break;
-                    default:
-                        ThrowHelper.ThrowNotImplementedException();
-                        break;
+                    var receiveTask = socket.ReceiveAsync(receiveBuffer, SocketFlags.None, cancellationToken);
+                    var receiveCount = !receiveTask.IsCompletedSuccessfully
+                        ? await receiveTask.ConfigureAwait(false)
+                        : receiveTask.Result;
+
+                    doReceive = receiveCount != 0;
+                    var temp = receiveBuffer.Slice(0, receiveCount);
+                    while (temp.Length > 0)
+                    {
+                        var responseCode = temp.Span[0];
+                        switch (responseCode)
+                        {
+                            case BackendMessageCode.CompletedResponse:
+                                var completedResponse = new CommandComplete(temp);
+                                temp = temp.Slice(completedResponse.Length + 1);
+                                break;
+                            case BackendMessageCode.CopyInResponse:
+                                ThrowHelper.ThrowNotImplementedException();
+                                break;
+                            case BackendMessageCode.CopyOutResponse:
+                                ThrowHelper.ThrowNotImplementedException();
+                                break;
+                            case BackendMessageCode.RowDescription:
+                                var rowDescription = new RowDescription(temp);
+                                temp = temp.Slice(rowDescription.Length + 1);
+                                break;
+                            case BackendMessageCode.DataRow:
+                                var dataRow = new DataRow(temp);
+                                temp = temp.Slice(dataRow.Length + 1);
+                                break;
+                            case BackendMessageCode.EmptyQueryResponse:
+                                ThrowHelper.ThrowNotImplementedException();
+                                break;
+                            case BackendMessageCode.ErrorResponse:
+                                var error = new ErrorResponse(temp, ArrayPool<ErrorOrNoticeResponseField>.Shared);
+                                temp = temp.Slice(error.Length + 1);
+                                ThrowHelper.ThrowNotImplementedException();
+                                break;
+                            case BackendMessageCode.ReadyForQuery:
+                                var readyForQuery = new ReadyForQuery(temp);
+                                temp = temp.Slice(readyForQuery.Length + 1);
+                                doReceive = false;
+                                break;
+                            case BackendMessageCode.NoticeResponse:
+                                var noticeResponse =
+                                    new NoticeResponse(temp, ArrayPool<ErrorOrNoticeResponseField>.Shared);
+                                temp = temp.Slice(noticeResponse.Length + 1);
+                                break;
+                            default:
+                                ThrowHelper.ThrowNotImplementedException();
+                                break;
+                        }
+                    }
                 }
+            }
+            finally
+            {
+                if (receiveBufferArray != null)
+                    m_arrayPool.Return(receiveBufferArray);
             }
 
             //ThrowHelper.ThrowNotImplementedException();
@@ -169,26 +188,27 @@ namespace PgNet
             if (!openTask.IsCompletedSuccessfully)
                 await openTask.ConfigureAwait(false);
             var cancelRequest = new CancelRequest(m_processId, m_secretKey);
-            var sendTask = connector.WriteAndSendMessage(cancelRequest, cancellationToken);
+            var socket = connector.m_socket;
+            var sendTask = connector.WriteAndSendMessage(socket, cancelRequest, cancellationToken);
             if (sendTask.IsCompletedSuccessfully)
                 await sendTask.ConfigureAwait(false);
 
             // Now wait for the server to close the connection, better chance of the cancellation
             // actually being delivered before we continue with the user's logic.
-            var waitTask = connector.WaitForDisconnect(cancellationToken);
+            var waitTask = connector.WaitForDisconnect(socket, cancellationToken);
             if (waitTask.IsCompletedSuccessfully)
                 await waitTask.ConfigureAwait(false);
 
         }
 
-        private async ValueTask<bool> WaitForDisconnect(CancellationToken cancellationToken)
+        private async ValueTask<bool> WaitForDisconnect(Socket socket, CancellationToken cancellationToken)
         {
             byte[]? sendBufferBytes = null;
             try
             {
                 sendBufferBytes = m_arrayPool.Rent(1);
                 var sendBuffer = new Memory<byte>(sendBufferBytes);
-                var receiveCount = await m_socket.ReceiveAsync(sendBuffer, SocketFlags.None, cancellationToken).ConfigureAwait(false);
+                var receiveCount = await socket.ReceiveAsync(sendBuffer, SocketFlags.None, cancellationToken).ConfigureAwait(false);
                 if (receiveCount > 0)
                 {
                     return false;
@@ -441,7 +461,7 @@ namespace PgNet
             return WriteAndSendMessage(writer, socket, sendBuffer, messageLength, cancellationToken);
         }
 
-        private async ValueTask<int> WriteAndSendMessage<T>(T writer,
+        private async ValueTask<int> WriteAndSendMessage<T>(Socket socket, T writer,
             CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
         {
             byte[]? sendBufferBytes = null;
@@ -451,7 +471,7 @@ namespace PgNet
                 sendBufferBytes = m_arrayPool.Rent(messageLength);
                 var sendBuffer = new Memory<byte>(sendBufferBytes);
 
-                var sendAsyncTask = WriteAndSendMessage(writer, m_socket, sendBuffer, messageLength, cancellationToken);
+                var sendAsyncTask = WriteAndSendMessage(writer, socket, sendBuffer, messageLength, cancellationToken);
 
                 return !sendAsyncTask.IsCompletedSuccessfully
                     ? await sendAsyncTask.ConfigureAwait(false)
@@ -479,10 +499,10 @@ namespace PgNet
                 : new ValueTask<int>(0);
         }*/
 
-        private ValueTask<int> SendSimpleMessage<T>(T knownMessage, CancellationToken cancellationToken) where T : struct, IKnownFrontendMessage
+        private static ValueTask<int> SendSimpleMessage<T>(Socket socket, T knownMessage, CancellationToken cancellationToken) where T : struct, IKnownFrontendMessage
         {
             var m = knownMessage.GetMessage();
-            return m_socket?.SendAsync(m, SocketFlags.None, cancellationToken) ?? new ValueTask<int>(0);
+            return socket?.SendAsync(m, SocketFlags.None, cancellationToken) ?? new ValueTask<int>(0);
         }
 
         private static void SetSocketOptions(Socket socket)
@@ -492,11 +512,12 @@ namespace PgNet
 
         public async ValueTask CloseAsync(int socketCloseTimeoutSeconds, CancellationToken cancellationToken)
         {
-            var sentSimpleMessageTask = SendSimpleMessage(new Terminate(), cancellationToken);
+            var socket = m_socket!;
+            var sentSimpleMessageTask = SendSimpleMessage(socket, new Terminate(), cancellationToken);
             if (!sentSimpleMessageTask.IsCompletedSuccessfully)
                 await sentSimpleMessageTask.ConfigureAwait(false);
-            m_socket?.Shutdown(SocketShutdown.Both);
-            m_socket?.Close(socketCloseTimeoutSeconds);
+            socket.Shutdown(SocketShutdown.Both);
+            socket.Close(socketCloseTimeoutSeconds);
         }
 
         public async ValueTask DisposeAsync()

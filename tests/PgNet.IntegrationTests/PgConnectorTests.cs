@@ -87,6 +87,16 @@ namespace PgNet.IntegrationTests
         }
 
         [Fact]
+        public async Task CommitWithNoTransactionAndQueryAfterTest()
+        {
+            var host = GetHost();
+            await using var connector = CreatePgConnector();
+            await connector.OpenAsync(host, "postgres", "postgres", "admin", CancellationToken.None);
+            await connector.SendQueryAsync("COMMIT", CancellationToken.None);
+            await connector.SendQueryAsync("SELECT 1", CancellationToken.None);
+        }
+
+        [Fact]
         public async Task RollbackWithTransactionTest()
         {
             var host = GetHost();
