@@ -13,10 +13,10 @@ namespace PgNet
     {
         private class ConnectionInfo
         {
-            public string Host;
-            public string Database;
-            public string UserName;
-            public string Password;
+            public string Host = string.Empty;
+            public string Database = string.Empty;
+            public string UserName = string.Empty;
+            public string Password = string.Empty;
         }
 
         private const int SocketCloseTimeoutDefault = 5; // 5 seconds
@@ -45,7 +45,7 @@ namespace PgNet
             CancellationToken cancellationToken)
         {
             m_connectorState = ConnectorState.Connecting;
-            var socketTask = ConnectAsync(host, cancellationToken);
+            var socketTask = ConnectAsync(host);
             var socket = socketTask.IsCompletedSuccessfully
                 ? socketTask.Result
                 : await socketTask.ConfigureAwait(false);
@@ -117,7 +117,7 @@ namespace PgNet
                         : receiveTask.Result;
 
                     doReceive = receiveCount != 0;
-                    var temp = receiveBuffer.Slice(0, receiveCount);
+                    ReadOnlyMemory<byte> temp = receiveBuffer.Slice(0, receiveCount);
                     while (temp.Length > 0)
                     {
                         var responseCode = temp.Span[0];
@@ -160,7 +160,7 @@ namespace PgNet
                                 temp = temp.Slice(noticeResponse.Length + 1);
                                 break;
                             default:
-                                ThrowHelper.ThrowNotImplementedException();
+                                ThrowHelper.ThrowUnexpectedBackendMessageException(responseCode);
                                 break;
                         }
                     }
@@ -179,7 +179,7 @@ namespace PgNet
         public async ValueTask Cancel(CancellationToken cancellationToken)
         {
             if (m_processId == 0)
-                throw new PostgresException("Cancellation not supported on this database (no BackendKeyData was received during connection)");
+                ThrowHelper.ThrowPostgresException("Cancellation not supported on this database (no BackendKeyData was received during connection)");
 
             var connectionInfo = m_connectionInfo;
             await using var connector = new PgConnector(m_arrayPool);
@@ -188,7 +188,7 @@ namespace PgNet
             if (!openTask.IsCompletedSuccessfully)
                 await openTask.ConfigureAwait(false);
             var cancelRequest = new CancelRequest(m_processId, m_secretKey);
-            var socket = connector.m_socket;
+            var socket = connector.m_socket!;
             var sendTask = connector.WriteAndSendMessage(socket, cancelRequest, cancellationToken);
             if (sendTask.IsCompletedSuccessfully)
                 await sendTask.ConfigureAwait(false);
@@ -203,12 +203,12 @@ namespace PgNet
 
         private async ValueTask<bool> WaitForDisconnect(Socket socket, CancellationToken cancellationToken)
         {
-            byte[]? sendBufferBytes = null;
+            byte[]? receiveBufferBytes = null;
             try
             {
-                sendBufferBytes = m_arrayPool.Rent(1);
-                var sendBuffer = new Memory<byte>(sendBufferBytes);
-                var receiveCount = await socket.ReceiveAsync(sendBuffer, SocketFlags.None, cancellationToken).ConfigureAwait(false);
+                receiveBufferBytes = m_arrayPool.Rent(1);
+                var receiveBuffer = new Memory<byte>(receiveBufferBytes);
+                var receiveCount = await socket.ReceiveAsync(receiveBuffer, SocketFlags.None, cancellationToken).ConfigureAwait(false);
                 if (receiveCount > 0)
                 {
                     return false;
@@ -226,14 +226,14 @@ namespace PgNet
             }
             finally
             {
-                if (sendBufferBytes != null)
-                    m_arrayPool.Return(sendBufferBytes);
+                if (receiveBufferBytes != null)
+                    m_arrayPool.Return(receiveBufferBytes);
             }
         }
 
-        private static async ValueTask<Socket> ConnectAsync(string host, CancellationToken cancellationToken)
+        private static async ValueTask<Socket> ConnectAsync(string host)
         {
-            var endpointsTask = ParseHost(host, cancellationToken);
+            var endpointsTask = ParseHost(host);
             var endpoints = endpointsTask.IsCompletedSuccessfully
                 ? endpointsTask.Result
                 : await endpointsTask.ConfigureAwait(false);
@@ -261,7 +261,7 @@ namespace PgNet
             return null;
         }
 
-        private static ValueTask<IPAddress[]> ParseHost(string host, CancellationToken cancellationToken)
+        private static ValueTask<IPAddress[]> ParseHost(string host)
         {
             if (host == "localhost" || host == "127.0.0.1")
                 return s_loopback;
@@ -305,8 +305,8 @@ namespace PgNet
                         break;
                     case BackendMessageCode.ErrorResponse: break;
                     default:
-                        throw new UnexpectedBackendMessageException(
-                            $"Unexpected backend message '{(char)responseCode}'");
+                        ThrowHelper.ThrowUnexpectedBackendMessageException(responseCode);
+                        break;
                 }
             }
             else
@@ -356,7 +356,8 @@ namespace PgNet
                     ThrowHelper.ThrowNotImplementedException();
                     break;
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(authResponse.AuthenticationRequestType));
+                    ThrowHelper.ThrowUnexpectedAuthenticationRequestType(authResponse.AuthenticationRequestType);
+                    break;
             }
 
             var result = await socket.ReceiveAsync(receiveBuffer, SocketFlags.None, cancellationToken)
@@ -383,8 +384,8 @@ namespace PgNet
                             var error = new ErrorResponse(buffer, ArrayPool<ErrorOrNoticeResponseField>.Shared);
                             break;
                         default:
-                            throw new UnexpectedBackendMessageException(
-                                $"Unexpected backend message '{(char)responseCode}'");
+                            ThrowHelper.ThrowUnexpectedBackendMessageException(responseCode);
+                            break;
                     }
                 }
                 buffer = buffer.Slice(Authentication.OkResponseLength);

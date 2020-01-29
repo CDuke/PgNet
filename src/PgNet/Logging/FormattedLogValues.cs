@@ -15,13 +15,10 @@ namespace PgNet.Logging
         internal const int MaxCachedFormatters = 1024;
         private const string NullFormat = "[null]";
         private static int _count;
-        private static ConcurrentDictionary<string, LogValuesFormatter> _formatters = new ConcurrentDictionary<string, LogValuesFormatter>();
-        private readonly LogValuesFormatter _formatter;
-        private readonly object[] _values;
+        private static readonly ConcurrentDictionary<string, LogValuesFormatter> _formatters = new ConcurrentDictionary<string, LogValuesFormatter>();
+        private readonly LogValuesFormatter? _formatter;
+        private readonly object?[] _values;
         private readonly string _originalMessage;
-
-        // for testing purposes
-        internal LogValuesFormatter Formatter => _formatter;
 
         public FormattedLogValues(string format, params object[] values)
         {
@@ -58,7 +55,7 @@ namespace PgNet.Logging
             {
                 if (index < 0 || index >= Count)
                 {
-                    throw new IndexOutOfRangeException(nameof(index));
+                    throw new ArgumentOutOfRangeException(nameof(index));
                 }
 
                 if (index == Count - 1)
@@ -85,7 +82,7 @@ namespace PgNet.Logging
 
         public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
         {
-            for (int i = 0; i < Count; ++i)
+            for (var i = 0; i < Count; ++i)
             {
                 yield return this[i];
             }

@@ -6,6 +6,8 @@
 		<LangVersion>latest</LangVersion>
 		<Nullable>enable</Nullable>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!--
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>-->
 	</PropertyGroup>
   <ItemGroup>
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)\.editorconfig" />

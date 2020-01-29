@@ -3,7 +3,7 @@ using System.Buffers;
 using System.Text;
 using Xunit;
 
-namespace PgNet.IntegrationTests
+namespace PgNet.Tests
 {
     public class MD5Tests
     {

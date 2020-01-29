@@ -2,7 +2,7 @@ using System;
 using System.Text;
 using Xunit;
 
-namespace PgNet.IntegrationTests
+namespace PgNet.Tests
 {
     public class MD5HelperTests
     {

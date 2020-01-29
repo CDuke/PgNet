@@ -20,7 +20,7 @@ namespace PgNet
         public const byte Severity = (byte)'V';
 
         /// <summary>
-        /// The SQLSTATE code for the error <seealso cref="https://www.postgresql.org/docs/current/errcodes-appendix.html"/> (see Appendix A).
+        /// The SQLSTATE code for the error <seealso href="https://www.postgresql.org/docs/current/errcodes-appendix.html"/> (see Appendix A).
         /// Not localizable. Always present.
         /// </summary>
         public const byte Code = (byte)'C';

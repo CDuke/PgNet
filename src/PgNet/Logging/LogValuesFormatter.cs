@@ -13,8 +13,8 @@ namespace PgNet.Logging
     internal class LogValuesFormatter
     {
         private const string NullValue = "(null)";
-        private static readonly object[] EmptyArray = Array.Empty<object>();
-        private static readonly char[] FormatDelimiters = { ',', ':' };
+        private static readonly object[] s_emptyArray = Array.Empty<object>();
+        private static readonly char[] s_formatDelimiters = { ',', ':' };
         private readonly string m_format;
         private readonly List<string> m_valueNames = new List<string>();
 
@@ -39,7 +39,7 @@ namespace PgNet.Logging
                 else
                 {
                     // Format item syntax : { index[,alignment][ :formatString] }.
-                    var formatDelimiterIndex = FindIndexOfAny(format, FormatDelimiters, openBraceIndex, closeBraceIndex);
+                    var formatDelimiterIndex = FindIndexOfAny(format, s_formatDelimiters, openBraceIndex, closeBraceIndex);
 
                     sb.Append(format, scanIndex, openBraceIndex - scanIndex + 1);
                     sb.Append(m_valueNames.Count.ToString(CultureInfo.InvariantCulture));
@@ -120,7 +120,7 @@ namespace PgNet.Logging
                 }
             }
 
-            return string.Format(CultureInfo.InvariantCulture, m_format, values ?? EmptyArray);
+            return string.Format(CultureInfo.InvariantCulture, m_format, values ?? s_emptyArray);
         }
 
         internal string Format()

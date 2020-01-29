@@ -18,6 +18,15 @@ namespace PgNet.Logging
         }
 
         /// <summary>
+        /// Creates an EventId from the given <see cref="int"/>.
+        /// </summary>
+        /// <param name="i">The <see cref="int"/> to convert to an EventId.</param>
+        public static EventId ToEventId(int i)
+        {
+            return new EventId(i);
+        }
+
+        /// <summary>
         /// Checks if two specified <see cref="EventId"/> instances have the same value. They are equal if they have the same Id.
         /// </summary>
         /// <param name="left">The first <see cref="EventId"/>.</param>
@@ -44,7 +53,7 @@ namespace PgNet.Logging
         /// </summary>
         /// <param name="id">The numeric identifier for this event.</param>
         /// <param name="name">The name of this event.</param>
-        public EventId(int id, string name = null)
+        public EventId(int id, string? name = null)
         {
             Id = id;
             Name = name;
@@ -58,7 +67,7 @@ namespace PgNet.Logging
         /// <summary>
         /// Gets the name of this event.
         /// </summary>
-        public string Name { get; }
+        public string? Name { get; }
 
         /// <inheritdoc />
         public override string ToString()
