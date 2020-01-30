@@ -21,7 +21,7 @@ namespace PgNet.Tests
             }
         }
 
-        private byte[] CalcHash(string userName, string passwd, byte[] salt)
+        private static byte[] CalcHash(string userName, string passwd, byte[] salt)
         {
             byte[] result;
             using (var md5 = System.Security.Cryptography.MD5.Create())
@@ -56,7 +56,7 @@ namespace PgNet.Tests
                 var resultString = sb.ToString();
                 result = new byte[Encoding.UTF8.GetByteCount(resultString) + 1];
                 Encoding.UTF8.GetBytes(resultString, 0, resultString.Length, result, 0);
-                result[result.Length - 1] = 0;
+                result[^1] = 0;
             }
 
             return result;

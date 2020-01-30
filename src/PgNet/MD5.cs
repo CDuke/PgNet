@@ -52,7 +52,7 @@ namespace PgNet
             while (i <= originalSource.Length - 64)
             {
                 source = originalSource.Slice(i, 64);
-                Transform(ref state, source);
+                Transform(state, source);
                 
                 i += 64;
             }
@@ -75,22 +75,22 @@ namespace PgNet
             if (cbSize < 56)
             {
                 BitConverter.TryWriteBytes(working.Slice(56), len);
-                Transform(ref state, working);
+                Transform(state, working);
             }
             else //We need an additional chunk to store the length
             {
-                Transform(ref state, working);
+                Transform(state, working);
 
                 //Create an entirely new chunk due to the 0-assigned trick mentioned above, to avoid an extra function call clearing the array
-                working = new byte[64];
-                BitConverter.TryWriteBytes(working.Slice(56), len);
-                Transform(ref state, working);
+                Span<byte> temp = stackalloc byte[64];
+                BitConverter.TryWriteBytes(temp.Slice(56), len);
+                Transform(state, temp);
             }
 
             MemoryMarshal.Cast<uint, byte>(state).CopyTo(destination);
         }
 
-        private static void Transform(ref Span<uint> state, ReadOnlySpan<byte> data)
+        private static void Transform(Span<uint> state, ReadOnlySpan<byte> data)
         {
             var d = state[3];
             var c = state[2];
@@ -98,7 +98,6 @@ namespace PgNet
             var a = state[0];
 
             var temp = MemoryMarshal.Cast<byte, uint>(data);
-
             // Round 1
             a = FF(a, b, c, d, temp[0], MD5_S11, 0xd76aa478);
             d = FF(d, a, b, c, temp[1], MD5_S12, 0xe8c7b756);
