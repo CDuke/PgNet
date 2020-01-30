@@ -103,10 +103,9 @@ namespace PgNet
                 await sendRequestTask.ConfigureAwait(false);
             }
 
-            byte[]? receiveBufferArray = null;
+            var receiveBufferArray = m_arrayPool.Rent(512);
             try
             {
-                receiveBufferArray = m_arrayPool.Rent(512);
                 var receiveBuffer = new Memory<byte>(receiveBufferArray);
                 var doReceive = true;
                 while (doReceive)
@@ -168,8 +167,7 @@ namespace PgNet
             }
             finally
             {
-                if (receiveBufferArray != null)
-                    m_arrayPool.Return(receiveBufferArray);
+                m_arrayPool.Return(receiveBufferArray);
             }
 
             //ThrowHelper.ThrowNotImplementedException();
@@ -203,18 +201,12 @@ namespace PgNet
 
         private async ValueTask<bool> WaitForDisconnect(Socket socket, CancellationToken cancellationToken)
         {
-            byte[]? receiveBufferBytes = null;
+            var receiveBufferBytes = m_arrayPool.Rent(1);
             try
             {
-                receiveBufferBytes = m_arrayPool.Rent(1);
                 var receiveBuffer = new Memory<byte>(receiveBufferBytes);
                 var receiveCount = await socket.ReceiveAsync(receiveBuffer, SocketFlags.None, cancellationToken).ConfigureAwait(false);
-                if (receiveCount > 0)
-                {
-                    return false;
-                }
-
-                return true;
+                return receiveCount <= 0;
             }
             catch (SocketException socketException) when (socketException.SocketErrorCode == SocketError.ConnectionReset)
             {
@@ -226,8 +218,7 @@ namespace PgNet
             }
             finally
             {
-                if (receiveBufferBytes != null)
-                    m_arrayPool.Return(receiveBufferBytes);
+                m_arrayPool.Return(receiveBufferBytes);
             }
         }
 
@@ -465,11 +456,10 @@ namespace PgNet
         private async ValueTask<int> WriteAndSendMessage<T>(Socket socket, T writer,
             CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
         {
-            byte[]? sendBufferBytes = null;
+            var messageLength = writer.CalculateLength();
+            var sendBufferBytes = m_arrayPool.Rent(messageLength);
             try
             {
-                var messageLength = writer.CalculateLength();
-                sendBufferBytes = m_arrayPool.Rent(messageLength);
                 var sendBuffer = new Memory<byte>(sendBufferBytes);
 
                 var sendAsyncTask = WriteAndSendMessage(writer, socket, sendBuffer, messageLength, cancellationToken);
@@ -480,8 +470,7 @@ namespace PgNet
             }
             finally
             {
-                if (sendBufferBytes != null)
-                    m_arrayPool.Return(sendBufferBytes);
+                m_arrayPool.Return(sendBufferBytes);
             }
         }
 

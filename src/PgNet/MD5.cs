@@ -53,7 +53,7 @@ namespace PgNet
             {
                 source = originalSource.Slice(i, 64);
                 Transform(state, source);
-                
+
                 i += 64;
             }
 
@@ -177,7 +177,6 @@ namespace PgNet
             state[1] = unchecked(state[1] + b);
             state[0] = unchecked(state[0] + a);
         }
-
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static uint FF(uint a, uint b, uint c, uint d, uint x, int s, uint t)
