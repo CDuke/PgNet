@@ -1,14 +1,13 @@
 using System;
 using System.Buffers;
-using PgNet.BackendMessage;
 
-namespace PgNet
+namespace PgNet.BackendMessage
 {
     internal readonly struct Authentication
     {
         private static readonly ReadOnlyMemory<byte> s_okResponse
-            = new ReadOnlyMemory<byte>(new [] {(byte)82, (byte)0, (byte)0, (byte)0, (byte)8,
-                (byte)0, (byte)0, (byte)0, (byte)0 });
+            = new [] {(byte)82, (byte)0, (byte)0, (byte)0, (byte)8,
+                (byte)0, (byte)0, (byte)0, (byte)0 };
 
         public const int OkResponseLength = 9; //s_okResponse.Length
 

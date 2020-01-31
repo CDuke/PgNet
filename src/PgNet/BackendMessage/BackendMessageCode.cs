@@ -1,4 +1,4 @@
-namespace PgNet
+namespace PgNet.BackendMessage
 {
     internal static class BackendMessageCode
     {

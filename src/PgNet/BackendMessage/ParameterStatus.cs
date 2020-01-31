@@ -2,7 +2,7 @@ using System;
 using System.Buffers;
 using System.Text;
 
-namespace PgNet
+namespace PgNet.BackendMessage
 {
     internal readonly struct ParameterStatus
     {

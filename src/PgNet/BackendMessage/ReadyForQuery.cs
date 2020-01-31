@@ -1,7 +1,7 @@
 using System;
 using System.Buffers;
 
-namespace PgNet
+namespace PgNet.BackendMessage
 {
     internal readonly struct ReadyForQuery
     {
