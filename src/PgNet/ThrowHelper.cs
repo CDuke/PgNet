@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using PgNet.BackendMessage;
 
 namespace PgNet
@@ -13,27 +14,38 @@ namespace PgNet
         }
 
         [DoesNotReturn]
-        public static void ThrowUnexpectedBackendMessageException(char messageCode)
-        {
-            throw new UnexpectedBackendMessageException($"Unexpected backend message '{messageCode}'");
-        }
-
-        [DoesNotReturn]
         public static void ThrowUnexpectedBackendMessageException(byte messageCode)
         {
             ThrowUnexpectedBackendMessageException((char)messageCode);
         }
 
         [DoesNotReturn]
+        public static void ThrowUnexpectedBackendMessageException(char messageCode)
+        {
+            throw new UnexpectedBackendMessageException(FormatInvariant("Unexpected backend message '0'", messageCode));
+        }
+
+        [DoesNotReturn]
         public static void ThrowUnexpectedAuthenticationRequestType(AuthenticationRequestType authenticationRequestType)
         {
-            ThrowPostgresException($"Unexpected backend message '{(char)authenticationRequestType}'");
+            ThrowPostgresException("Unexpected authentication type '{0}'", (char)authenticationRequestType);
         }
 
         [DoesNotReturn]
         public static void ThrowPostgresException(string message)
         {
             throw new PostgresException(message);
+        }
+
+        [DoesNotReturn]
+        public static void ThrowPostgresException<T>(string message, T arg0)
+        {
+            throw new PostgresException(FormatInvariant(message, arg0));
+        }
+
+        private static string FormatInvariant<T>(string message, T arg0)
+        {
+            return string.Format(CultureInfo.InvariantCulture, message, arg0);
         }
     }
 }

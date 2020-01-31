@@ -107,61 +107,48 @@ namespace PgNet
             try
             {
                 var receiveBuffer = new Memory<byte>(receiveBufferArray);
-                var doReceive = true;
-                while (doReceive)
+                var reader = new BackendMessageReader<SocketReceiver>(new SocketReceiver(socket), receiveBuffer);
+                while (true)
                 {
-                    var receiveTask = socket.ReceiveAsync(receiveBuffer, SocketFlags.None, cancellationToken);
-                    var receiveCount = !receiveTask.IsCompletedSuccessfully
-                        ? await receiveTask.ConfigureAwait(false)
-                        : receiveTask.Result;
-
-                    doReceive = receiveCount != 0;
-                    ReadOnlyMemory<byte> temp = receiveBuffer.Slice(0, receiveCount);
-                    while (temp.Length > 0)
+                    var moveNextTask = reader.MoveNext(cancellationToken);
+                    var hasNext = !moveNextTask.IsCompletedSuccessfully
+                        ? await moveNextTask
+                        : moveNextTask.Result;
+                    if (!hasNext)
+                        break;
+                    switch (reader.MessageType)
                     {
-                        var responseCode = temp.Span[0];
-                        switch (responseCode)
-                        {
-                            case BackendMessageCode.CompletedResponse:
-                                var completedResponse = new CommandComplete(temp);
-                                temp = temp.Slice(completedResponse.Length + 1);
-                                break;
-                            case BackendMessageCode.CopyInResponse:
-                                ThrowHelper.ThrowNotImplementedException();
-                                break;
-                            case BackendMessageCode.CopyOutResponse:
-                                ThrowHelper.ThrowNotImplementedException();
-                                break;
-                            case BackendMessageCode.RowDescription:
-                                var rowDescription = new RowDescription(temp);
-                                temp = temp.Slice(rowDescription.Length + 1);
-                                break;
-                            case BackendMessageCode.DataRow:
-                                var dataRow = new DataRow(temp);
-                                temp = temp.Slice(dataRow.Length + 1);
-                                break;
-                            case BackendMessageCode.EmptyQueryResponse:
-                                ThrowHelper.ThrowNotImplementedException();
-                                break;
-                            case BackendMessageCode.ErrorResponse:
-                                var error = new ErrorResponse(temp, ArrayPool<ErrorOrNoticeResponseField>.Shared);
-                                temp = temp.Slice(error.Length + 1);
-                                ThrowHelper.ThrowNotImplementedException();
-                                break;
-                            case BackendMessageCode.ReadyForQuery:
-                                var readyForQuery = new ReadyForQuery(temp);
-                                temp = temp.Slice(readyForQuery.Length + 1);
-                                doReceive = false;
-                                break;
-                            case BackendMessageCode.NoticeResponse:
-                                var noticeResponse =
-                                    new NoticeResponse(temp, ArrayPool<ErrorOrNoticeResponseField>.Shared);
-                                temp = temp.Slice(noticeResponse.Length + 1);
-                                break;
-                            default:
-                                ThrowHelper.ThrowUnexpectedBackendMessageException(responseCode);
-                                break;
-                        }
+                        case BackendMessageCode.CompletedResponse:
+                            reader.ReadCommandComplete();
+                            break;
+                        case BackendMessageCode.CopyInResponse:
+                            ThrowHelper.ThrowNotImplementedException();
+                            break;
+                        case BackendMessageCode.CopyOutResponse:
+                            ThrowHelper.ThrowNotImplementedException();
+                            break;
+                        case BackendMessageCode.RowDescription:
+                            reader.ReadRowDescription();
+                            break;
+                        case BackendMessageCode.DataRow:
+                            reader.ReadDataRow();
+                            break;
+                        case BackendMessageCode.EmptyQueryResponse:
+                            ThrowHelper.ThrowNotImplementedException();
+                            break;
+                        case BackendMessageCode.ErrorResponse:
+                            reader.ReadErrorResponse();
+                            ThrowHelper.ThrowNotImplementedException();
+                            break;
+                        case BackendMessageCode.ReadyForQuery:
+                            reader.ReadReadyForQuery();
+                            break;
+                        case BackendMessageCode.NoticeResponse:
+                            reader.ReadNoticeResponse();
+                            break;
+                        default:
+                            ThrowHelper.ThrowUnexpectedBackendMessageException(reader.MessageType);
+                            break;
                     }
                 }
             }

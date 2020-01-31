@@ -1,35 +1,16 @@
 using System;
-using System.Net.Sockets;
+using System.Buffers;
+using System.Buffers.Binary;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace PgNet.BackendMessage
 {
-    internal interface IReceiver
-    {
-        ValueTask<int> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken);
-    }
-
-    internal readonly struct SocketReceiver : IReceiver
-    {
-        private readonly Socket _socket;
-
-        public SocketReceiver(Socket socket)
-        {
-            _socket = socket;
-        }
-
-        public ValueTask<int> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken)
-        {
-            return _socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
-        }
-    }
-
-    internal struct BackendMessageReader<T> where T: IReceiver
+    internal class BackendMessageReader<T> where T : IReceiver
     {
         private T m_receiver;
         private Memory<byte> m_receiveBuffer;
-        private Memory<byte> m_content;
+        private ReadOnlyMemory<byte> m_content;
         private readonly int m_lastReceiveCount;
         private int m_totalReceived;
 
@@ -54,6 +35,8 @@ namespace PgNet.BackendMessage
         {
             if (m_readyForQuery)
                 return false;
+            if (MessageSize > 0)
+                m_content = m_content.Slice(MessageSize + 1);
             if (m_content.IsEmpty)
             {
                 var receiveTask = m_receiver.ReceiveAsync(m_receiveBuffer, cancellationToken);
@@ -66,30 +49,26 @@ namespace PgNet.BackendMessage
                 m_totalReceived += receiveCount;
                 if (m_totalReceived <= sizeof(byte) + sizeof(int))
                     ThrowHelper.ThrowNotImplementedException();
-                m_content = m_receiveBuffer;
-            }
-            else
-            {
-                m_content = m_content.Slice(MessageSize + 1);
+                m_content = m_receiveBuffer.Slice(0,receiveCount);
             }
 
             MessageType = m_content.Span[0];
-            MessageSize = m_content.Span[1];
+            MessageSize = BinaryPrimitives.ReadInt32BigEndian(m_content.Span.Slice(1));
             m_readyForQuery = MessageType == BackendMessageCode.ReadyForQuery;
 
             return true;
         }
 
-        public CommandComplete ReadCommandComplete()
-        {
-            var completedResponse = new CommandComplete(m_content);
-            return completedResponse;
-        }
+        public CommandComplete ReadCommandComplete() => new CommandComplete(m_content);
 
-        public ReadyForQuery ReadReadyForQuery()
-        {
-            var readyForQuery = new ReadyForQuery(m_content);
-            return readyForQuery;
-        }
+        public ReadyForQuery ReadReadyForQuery() => new ReadyForQuery(m_content);
+
+        public RowDescription ReadRowDescription() => new RowDescription(m_content);
+
+        public DataRow ReadDataRow() => new DataRow(m_content);
+
+        public ErrorResponse ReadErrorResponse() => new ErrorResponse(m_content, ArrayPool<ErrorOrNoticeResponseField>.Shared);
+
+        public NoticeResponse ReadNoticeResponse() => new NoticeResponse(m_content, ArrayPool<ErrorOrNoticeResponseField>.Shared);
     }
 }
