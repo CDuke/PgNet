@@ -5,8 +5,9 @@ namespace PgNet.BackendMessage
 {
     internal readonly struct Authentication
     {
-        private static readonly ReadOnlyMemory<byte> s_okResponse
-            = new [] {(byte)82, (byte)0, (byte)0, (byte)0, (byte)8,
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "<Pending>")]
+        private static ReadOnlySpan<byte> s_okResponse
+            => new [] {(byte)82, (byte)0, (byte)0, (byte)0, (byte)8,
                 (byte)0, (byte)0, (byte)0, (byte)0 };
 
         public const int OkResponseLength = 9; //s_okResponse.Length
@@ -29,7 +30,7 @@ namespace PgNet.BackendMessage
         public static bool IsOk(ReadOnlyMemory<byte> bytes)
         {
             return bytes.Length >= OkResponseLength
-                   && bytes.Slice(0, OkResponseLength).Span.SequenceEqual(s_okResponse.Span);
+                   && bytes.Slice(0, OkResponseLength).Span.SequenceEqual(s_okResponse);
         }
     }
 }
