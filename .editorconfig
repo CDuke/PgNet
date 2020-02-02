@@ -124,117 +124,6 @@ dotnet_code_quality_unused_parameters = all:warning
 # https://github.com/MicrosoftDocs/visualstudio-docs/issues/3641
 dotnet_style_operator_placement_when_wrapping = end_of_line
 
-##########################################
-# .NET Design Guideline Field Naming Rules
-# Naming rules for fields follow the .NET Framework design guidelines
-# https://docs.microsoft.com/dotnet/standard/design-guidelines/index
-##########################################
-
-# All public/protected/protected_internal constant fields must be PascalCase
-# https://docs.microsoft.com/dotnet/standard/design-guidelines/field
-dotnet_naming_symbols.public_protected_constant_fields_group.applicable_accessibilities = public, protected, protected_internal
-dotnet_naming_symbols.public_protected_constant_fields_group.required_modifiers         = const
-dotnet_naming_symbols.public_protected_constant_fields_group.applicable_kinds           = field
-dotnet_naming_rule.public_protected_constant_fields_must_be_pascal_case_rule.symbols    = public_protected_constant_fields_group
-dotnet_naming_rule.public_protected_constant_fields_must_be_pascal_case_rule.style      = pascal_case_style
-dotnet_naming_rule.public_protected_constant_fields_must_be_pascal_case_rule.severity   = error
-
-# All public/protected/protected_internal static readonly fields must be PascalCase
-# https://docs.microsoft.com/dotnet/standard/design-guidelines/field
-dotnet_naming_symbols.public_protected_static_readonly_fields_group.applicable_accessibilities = public, protected, protected_internal, private
-dotnet_naming_symbols.public_protected_static_readonly_fields_group.required_modifiers         = static, readonly
-dotnet_naming_symbols.public_protected_static_readonly_fields_group.applicable_kinds           = field
-dotnet_naming_rule.public_protected_static_readonly_fields_must_be_pascal_case_rule.symbols    = public_protected_static_readonly_fields_group
-dotnet_naming_rule.public_protected_static_readonly_fields_must_be_pascal_case_rule.style      = pascal_case_style
-dotnet_naming_rule.public_protected_static_readonly_fields_must_be_pascal_case_rule.severity   = error
-
-# No other public/protected/protected_internal fields are allowed
-# https://docs.microsoft.com/dotnet/standard/design-guidelines/field
-#dotnet_naming_symbols.other_public_protected_fields_group.applicable_accessibilities = public, protected, protected_internal
-#dotnet_naming_symbols.other_public_protected_fields_group.applicable_kinds           = field
-#dotnet_naming_rule.other_public_protected_fields_disallowed_rule.symbols             = other_public_protected_fields_group
-#dotnet_naming_rule.other_public_protected_fields_disallowed_rule.style               = disallowed_style
-#dotnet_naming_rule.other_public_protected_fields_disallowed_rule.severity            = error
-
-##########################################
-# StyleCop Field Naming Rules
-# Naming rules for fields follow the StyleCop analyzers
-# This does not override any rules using disallowed_style above
-# https://github.com/DotNetAnalyzers/StyleCopAnalyzers
-##########################################
-
-# All constant fields must be PascalCase
-# https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1303.md
-dotnet_naming_symbols.stylecop_constant_fields_group.applicable_accessibilities = public, internal, protected_internal, protected, private_protected
-dotnet_naming_symbols.stylecop_constant_fields_group.required_modifiers         = const
-dotnet_naming_symbols.stylecop_constant_fields_group.applicable_kinds           = field
-dotnet_naming_rule.stylecop_constant_fields_must_be_pascal_case_rule.symbols    = stylecop_constant_fields_group
-dotnet_naming_rule.stylecop_constant_fields_must_be_pascal_case_rule.style      = pascal_case_style
-dotnet_naming_rule.stylecop_constant_fields_must_be_pascal_case_rule.severity   = error
-
-# Non-private static fields are PascalCase
-# https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1311.md
-dotnet_naming_symbols.non_private_static_fields_group.applicable_accessibilities  = public, internal, protected_internal, protected, private_protected
-dotnet_naming_symbols.non_private_static_fields_group.required_modifiers          = static
-dotnet_naming_symbols.non_private_static_fields_group.applicable_kinds            = field
-dotnet_naming_rule.non_private_static_fields_must_be_pascal_case_rule.symbols    = non_private_static_fields_group
-dotnet_naming_rule.non_private_static_fields_must_be_pascal_case_rule.style      = pascal_case_style
-dotnet_naming_rule.non_private_static_fields_must_be_pascal_case_rule.severity   = error
-
-# Non-private readonly fields are PascalCase
-dotnet_naming_symbols.non_private_readonly_fields_group.applicable_accessibilities  = public, internal, protected_internal, protected, private_protected
-dotnet_naming_symbols.non_private_readonly_fields_group.required_modifiers          = readonly
-dotnet_naming_symbols.non_private_readonly_fields_group.applicable_kinds            = field
-dotnet_naming_rule.non_private_readonly_fields_must_be_pascal_case_rule.symbols    = non_private_readonly_fields_group
-dotnet_naming_rule.non_private_readonly_fields_must_be_pascal_case_rule.style      = pascal_case_style
-dotnet_naming_rule.non_private_readonly_fields_must_be_pascal_case_rule.severity   = error
-
-# All private static fields should have s_ prefix
-#dotnet_naming_symbols.stylecop_private_fields_group.applicable_accessibilities = private
-dotnet_naming_symbols.stylecop_private_static_fields.required_modifiers = static
-dotnet_naming_symbols.stylecop_private_static_fields.applicable_kinds = field
-dotnet_naming_rule.stylecop_private_static_fields_should_have_prefix.symbols = stylecop_private_static_fields
-dotnet_naming_rule.stylecop_private_static_fields_should_have_prefix.style = s_camelcase_style
-dotnet_naming_rule.stylecop_private_static_fields_should_have_prefix.severity = error
-dotnet_naming_style.s_camelcase_style.required_prefix = s_
-dotnet_naming_style.s_camelcase_style.capitalization = camel_case
-
-# All instance fields must be m_camelCase
-# https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1306.md
-#dotnet_naming_symbols.stylecop_private_fields_group.applicable_accessibilities = private
-dotnet_naming_symbols.stylecop_private_fields_group.applicable_kinds           = field
-dotnet_naming_rule.stylecop_private_fields_must_be_camel_case_rule.symbols     = stylecop_private_fields_group
-dotnet_naming_rule.stylecop_private_fields_must_be_camel_case_rule.style       = m_camel_case_style
-dotnet_naming_rule.stylecop_private_fields_must_be_camel_case_rule.severity    = error
-dotnet_naming_style.m_camel_case_style.required_prefix = m_
-dotnet_naming_style.m_camel_case_style.capitalization = camel_case
-
-# No non-private instance fields are allowed
-# https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1401.md
-#dotnet_naming_symbols.stylecop_fields_must_be_private_group.applicable_accessibilities = public, internal, protected_internal, protected, private_protected
-#dotnet_naming_symbols.stylecop_fields_must_be_private_group.applicable_kinds           = field
-#dotnet_naming_rule.stylecop_instance_fields_must_be_private_rule.symbols               = stylecop_fields_must_be_private_group
-#dotnet_naming_rule.stylecop_instance_fields_must_be_private_rule.style                 = disallowed_style
-#dotnet_naming_rule.stylecop_instance_fields_must_be_private_rule.severity              = error
-
-
-# Local variables must be camelCase
-# https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1312.md
-dotnet_naming_symbols.stylecop_local_fields_group.applicable_accessibilities = local
-dotnet_naming_symbols.stylecop_local_fields_group.applicable_kinds           = local
-dotnet_naming_rule.stylecop_local_fields_must_be_camel_case_rule.symbols     = stylecop_local_fields_group
-dotnet_naming_rule.stylecop_local_fields_must_be_camel_case_rule.style       = camel_case_style
-dotnet_naming_rule.stylecop_local_fields_must_be_camel_case_rule.severity    = silent
-
-# This rule should never fire.  However, it's included for at least two purposes:
-# First, it helps to understand, reason about, and root-case certain types of issues, such as bugs in .editorconfig parsers.
-# Second, it helps to raise immediate awareness if a new field type is added (as occurred recently in C#).
-dotnet_naming_symbols.sanity_check_uncovered_field_case_group.applicable_accessibilities = *
-dotnet_naming_symbols.sanity_check_uncovered_field_case_group.applicable_kinds           = field
-dotnet_naming_rule.sanity_check_uncovered_field_case_rule.symbols  = sanity_check_uncovered_field_case_group
-dotnet_naming_rule.sanity_check_uncovered_field_case_rule.style    = internal_error_style
-dotnet_naming_rule.sanity_check_uncovered_field_case_rule.severity = error
-
 # Organize usings
 # https://docs.microsoft.com/visualstudio/ide/editorconfig-formatting-conventions#organize-using-directives
 dotnet_sort_system_directives_first = true
@@ -291,7 +180,7 @@ csharp_style_prefer_range_operator = true:warning
 # https://docs.microsoft.com/visualstudio/ide/editorconfig-language-conventions#miscellaneous-preferences
 csharp_style_deconstructed_variable_declaration = true:warning
 csharp_style_pattern_local_over_anonymous_function = true:warning
-csharp_using_directive_placement = inside_namespace:warning
+csharp_using_directive_placement = outside_namespace:warning
 csharp_prefer_static_local_function = true:warning
 csharp_prefer_simple_using_statement = true:suggestion
 
@@ -346,8 +235,62 @@ dotnet_naming_style.internal_error_style.required_prefix = ____INTERNAL_ERROR___
 dotnet_naming_style.internal_error_style.required_suffix = ____INTERNAL_ERROR____
 
 ##########################################
-# Other Naming Rules
+# Naming Rules
 ##########################################
+
+# Constants are PascalCase
+# https://docs.microsoft.com/dotnet/standard/design-guidelines/field
+#dotnet_naming_symbols.constants_group.applicable_accessibilities = public, protected, protected_internal, private
+dotnet_naming_symbols.constants_group.required_modifiers         = const
+dotnet_naming_symbols.constants_group.applicable_kinds           = field, local
+dotnet_naming_rule.public_protected_constant_fields_must_be_pascal_case_rule.symbols    = constants_group
+dotnet_naming_rule.public_protected_constant_fields_must_be_pascal_case_rule.style      = pascal_case_style
+dotnet_naming_rule.public_protected_constant_fields_must_be_pascal_case_rule.severity   = error
+
+# Non-private static fields are PascalCase
+# https://docs.microsoft.com/dotnet/standard/design-guidelines/field
+dotnet_naming_symbols.non_private_static_fields_group.applicable_accessibilities = public, protected, internal, protected_internal, private_protected
+dotnet_naming_symbols.non_private_static_fields_group.required_modifiers         = static
+dotnet_naming_symbols.non_private_static_fields_group.applicable_kinds           = field
+dotnet_naming_rule.non_private_static_fields_must_be_pascal_case_rule.symbols    = non_private_static_fields_group
+dotnet_naming_rule.non_private_static_fields_must_be_pascal_case_rule.style      = pascal_case_style
+dotnet_naming_rule.non_private_static_fields_must_be_pascal_case_rule.severity   = error
+
+# Non-private readonly fields are PascalCase
+# https://docs.microsoft.com/dotnet/standard/design-guidelines/field
+dotnet_naming_symbols.non_private_fields_group.applicable_accessibilities = public, protected, internal, protected_internal, private_protected
+dotnet_naming_symbols.non_private_fields_group.applicable_kinds           = field
+dotnet_naming_rule.non_private_fields_must_be_pascal_case_rule.symbols    = non_private_fields_group
+dotnet_naming_rule.non_private_fields_must_be_pascal_case_rule.style      = pascal_case_style
+dotnet_naming_rule.non_private_fields_must_be_pascal_case_rule.severity   = error
+
+# All private static fields should have s_ prefix
+dotnet_naming_symbols.private_static_fields_group.applicable_accessibilities = private
+dotnet_naming_symbols.private_static_fields_group.required_modifiers = static
+dotnet_naming_symbols.private_static_fields_group.applicable_kinds = field
+dotnet_naming_rule.private_static_fields_must_have_prefix_rule.symbols = private_static_fields_group
+dotnet_naming_rule.private_static_fields_must_have_prefix_rule.style = s_camelcase_style
+dotnet_naming_rule.private_static_fields_must_have_prefix_rule.severity = error
+dotnet_naming_style.s_camelcase_style.required_prefix = s_
+dotnet_naming_style.s_camelcase_style.capitalization = camel_case
+
+# All instance fields must be m_camelCase
+# https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1306.md
+dotnet_naming_symbols.private_fields_group.applicable_accessibilities = private
+dotnet_naming_symbols.private_fields_group.applicable_kinds           = field
+dotnet_naming_rule.private_fields_must_be_camel_case_rule.symbols     = private_fields_group
+dotnet_naming_rule.private_fields_must_be_camel_case_rule.style       = m_camel_case_style
+dotnet_naming_rule.private_fields_must_be_camel_case_rule.severity    = error
+dotnet_naming_style.m_camel_case_style.required_prefix = m_
+dotnet_naming_style.m_camel_case_style.capitalization = camel_case
+
+# No other public/protected/protected_internal fields are allowed
+# https://docs.microsoft.com/dotnet/standard/design-guidelines/field
+#dotnet_naming_symbols.other_public_protected_fields_group.applicable_accessibilities = public, protected, protected_internal
+#dotnet_naming_symbols.other_public_protected_fields_group.applicable_kinds           = field
+#dotnet_naming_rule.other_public_protected_fields_disallowed_rule.symbols             = other_public_protected_fields_group
+#dotnet_naming_rule.other_public_protected_fields_disallowed_rule.style               = disallowed_style
+#dotnet_naming_rule.other_public_protected_fields_disallowed_rule.severity            = error
 
 # All of the following must be PascalCase:
 # - Namespaces
@@ -391,6 +334,23 @@ dotnet_naming_symbols.local_functions_group.applicable_kinds = local_function
 dotnet_naming_rule.local_functions_should_be_pascal_case.symbols = local_functions_group
 dotnet_naming_rule.local_functions_should_be_pascal_case.style = pascal_case_style
 dotnet_naming_rule.local_functions_should_be_pascal_case.severity = error
+
+# Local variables must be camelCase
+# https://github.com/DotNetAnalyzers/StyleCopAnalyzers/blob/master/documentation/SA1312.md
+dotnet_naming_symbols.local_fields_group.applicable_accessibilities = local
+dotnet_naming_symbols.local_fields_group.applicable_kinds           = local
+dotnet_naming_rule.local_fields_must_be_camel_case_rule.symbols     = local_fields_group
+dotnet_naming_rule.local_fields_must_be_camel_case_rule.style       = camel_case_style
+dotnet_naming_rule.local_fields_must_be_camel_case_rule.severity    = silent
+
+# This rule should never fire.  However, it's included for at least two purposes:
+# First, it helps to understand, reason about, and root-case certain types of issues, such as bugs in .editorconfig parsers.
+# Second, it helps to raise immediate awareness if a new field type is added (as occurred recently in C#).
+dotnet_naming_symbols.sanity_check_uncovered_field_case_group.applicable_accessibilities = *
+dotnet_naming_symbols.sanity_check_uncovered_field_case_group.applicable_kinds           = field
+dotnet_naming_rule.sanity_check_uncovered_field_case_rule.symbols  = sanity_check_uncovered_field_case_group
+dotnet_naming_rule.sanity_check_uncovered_field_case_rule.style    = internal_error_style
+dotnet_naming_rule.sanity_check_uncovered_field_case_rule.severity = error
 
 # Dotnet diagnostics
 # CA2007: Consider calling ConfigureAwait on the awaited task
