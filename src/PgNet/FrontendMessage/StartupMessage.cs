@@ -1,22 +1,31 @@
 using System;
-using System.Text;
 
 namespace PgNet.FrontendMessage
 {
     internal struct StartupMessage : IFrontendMessageWriter
     {
-        private static readonly Encoding s_utf8Encoding = Encoding.UTF8;
         private const int ProtocolVersion3 = 3 << 16; // 196608
 
-        private static readonly byte[] s_databaseParameterName = s_utf8Encoding.GetBytes("database");
-        private static readonly byte[] s_userParameterName = s_utf8Encoding.GetBytes("user");
-        private static readonly byte[] s_clientEncodingParameterName = s_utf8Encoding.GetBytes("client_encoding");
-        private static readonly byte[] s_clientEncodingDefaultParameterValue = s_utf8Encoding.GetBytes("UTF8");
-        private static readonly byte[] s_applicationNameParameterName = s_utf8Encoding.GetBytes("application_name");
-        private static readonly byte[] s_fallbackApplicationNameParameterName = s_utf8Encoding.GetBytes("fallback_application_name");
+        private static ReadOnlySpan<byte> s_databaseParameterName => new[] { (byte)'d', (byte)'a', (byte)'t', (byte)'a', (byte)'b', (byte)'a', (byte)'s', (byte)'e', (byte)0 };
+        private static ReadOnlySpan<byte> s_userParameterName => new[] { (byte)'u', (byte)'s', (byte)'e', (byte)'r', (byte)0 };
+        private static ReadOnlySpan<byte> s_clientEncodingParameterName
+            => new[] { (byte)'c', (byte)'l', (byte)'i', (byte)'e', (byte)'n', (byte)'t', (byte)'_', (byte)'e', (byte)'n', (byte)'c', (byte)'o', (byte)'d', (byte)'i', (byte)'n', (byte)'g', (byte)0 };
+        private static ReadOnlySpan<byte> s_clientEncodingDefaultParameterValue => new[] { (byte)'U', (byte)'T', (byte)'F', (byte)'8', (byte)0 };
+        private static ReadOnlySpan<byte> s_applicationNameParameterName
+            => new[] { (byte)'a', (byte)'p', (byte)'p', (byte)'l', (byte)'i', (byte)'c', (byte)'a', (byte)'t', (byte)'i', (byte)'o', (byte)'n', (byte)'_', (byte)'n', (byte)'a', (byte)'m', (byte)'e', (byte)0 };
 
-        private static readonly byte[] s_searchPathParameterName = s_utf8Encoding.GetBytes("search_path");
-        private static readonly byte[] s_timeZoneParameterName = s_utf8Encoding.GetBytes("TimeZone");
+        private static ReadOnlySpan<byte> s_fallbackApplicationNameParameterName
+            => new[]
+            {
+                (byte)'f', (byte)'a', (byte)'l', (byte)'l', (byte)'b', (byte)'a', (byte)'c', (byte)'k', (byte)'_',
+                (byte)'a', (byte)'p', (byte)'p', (byte)'l', (byte)'i', (byte)'c', (byte)'a', (byte)'t', (byte)'i', (byte)'o', (byte)'n', (byte)'_', (byte)'n', (byte)'a', (byte)'m', (byte)'e', (byte)0
+            };
+
+        private static ReadOnlySpan<byte> s_searchPathParameterName
+            => new[] { (byte)'s', (byte)'e', (byte)'a', (byte)'r', (byte)'c', (byte)'h', (byte)'_', (byte)'p', (byte)'a', (byte)'t', (byte)'h', (byte)0 };
+
+        private static ReadOnlySpan<byte> s_timeZoneParameterName
+            => new[] { (byte)'T', (byte)'i', (byte)'m', (byte)'e', (byte)'Z', (byte)'o', (byte)'n', (byte)'e', (byte)0 };
 
         private string m_database;
         private string m_user;
@@ -25,35 +34,17 @@ namespace PgNet.FrontendMessage
         private string m_searchPath;
         private string m_timeZone;
 
-        public void SetDatabase(string database)
-        {
-            m_database = database;
-        }
+        public void SetDatabase(string database) => m_database = database;
 
-        public void SetUser(string user)
-        {
-            m_user = user;
-        }
+        public void SetUser(string user) => m_user = user;
 
-        public void SetApplicationName(string applicationName)
-        {
-            m_applicationName = applicationName;
-        }
+        public void SetApplicationName(string applicationName) => m_applicationName = applicationName;
 
-        public void SetFallbackApplicationName(string applicationName)
-        {
-            m_fallbackApplicationName = applicationName;
-        }
+        public void SetFallbackApplicationName(string applicationName) => m_fallbackApplicationName = applicationName;
 
-        public void SetSearchPath(string searchPath)
-        {
-            m_searchPath = searchPath;
-        }
+        public void SetSearchPath(string searchPath) => m_searchPath = searchPath;
 
-        public void SetTimeZone(string timeZone)
-        {
-            m_timeZone = timeZone;
-        }
+        public void SetTimeZone(string timeZone) => m_timeZone = timeZone;
 
         public int CalculateLength()
         {
@@ -92,39 +83,39 @@ namespace PgNet.FrontendMessage
             w.WriteByte(0);
         }
 
-        private static void WriteParameter(ref BinarySpanWriter writer, byte[] parameterName, string parameterValue)
+        private static void WriteParameter(ref BinarySpanWriter writer, ReadOnlySpan<byte> parameterName, string parameterValue)
         {
             if (parameterValue != null)
             {
-                writer.WriteNullTerminateBytes(parameterName);
-                writer.WriteNullTerminateString(parameterValue, s_utf8Encoding);
+                writer.WriteSpan(parameterName);
+                writer.WriteNullTerminateUtf8String(parameterValue);
             }
         }
 
-        private static void WriteParameter(ref BinarySpanWriter writer, byte[] parameterName, byte[] parameterValue)
+        private static void WriteParameter(ref BinarySpanWriter writer, ReadOnlySpan<byte> parameterName, ReadOnlySpan<byte> parameterValue)
         {
             if (parameterValue != null)
             {
-                writer.WriteNullTerminateBytes(parameterName);
-                writer.WriteNullTerminateBytes(parameterValue);
+                writer.WriteSpan(parameterName);
+                writer.WriteSpan(parameterValue);
             }
         }
 
-        private static int CalculateParameterLength(byte[] parameterName, string parameterValue)
+        private static int CalculateParameterLength(ReadOnlySpan<byte> parameterName, string parameterValue)
         {
             if (parameterValue != null)
             {
-                return parameterName.Length + 1 + s_utf8Encoding.GetByteCount(parameterValue) + 1;
+                return parameterName.Length + PgUtf8.GetByteCount(parameterValue) + 1;
             }
 
             return 0;
         }
 
-        private static int CalculateParameterLength(byte[] parameterName, byte[] parameterValue)
+        private static int CalculateParameterLength(ReadOnlySpan<byte> parameterName, ReadOnlySpan<byte> parameterValue)
         {
             if (parameterValue.Length > 0)
             {
-                return parameterName.Length + 1 + parameterValue.Length + 1;
+                return parameterName.Length + parameterValue.Length;
             }
 
             return 0;

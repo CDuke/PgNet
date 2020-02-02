@@ -1,6 +1,5 @@
 using System;
 using System.Buffers;
-using System.Text;
 
 namespace PgNet.BackendMessage
 {
@@ -13,7 +12,6 @@ namespace PgNet.BackendMessage
 
         public RowDescription(ReadOnlyMemory<byte> bytes)
         {
-            var encoding = Encoding.UTF8;
             var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(bytes));
             reader.TryRead(out MessageType);
             reader.TryReadBigEndian(out Length);
@@ -22,9 +20,9 @@ namespace PgNet.BackendMessage
             if (FieldCount > 0)
             {
                 Fields = new FieldDescription[FieldCount];
-                for (int i = 0; i < Fields.Length; i++)
+                for (var i = 0; i < Fields.Length; i++)
                 {
-                    Fields[i] = new FieldDescription(ref reader, encoding);
+                    Fields[i] = new FieldDescription(ref reader);
                 }
             }
             else
@@ -44,9 +42,9 @@ namespace PgNet.BackendMessage
         public readonly int DataTypeModifier;
         public readonly short FormatCode;
 
-        public FieldDescription(ref SequenceReader<byte> reader, Encoding encoding)
+        public FieldDescription(ref SequenceReader<byte> reader)
         {
-            Name = reader.ReadNullTerminateString(encoding);
+            Name = reader.ReadUtf8NullTerminateStringAsUtf16();
             reader.TryReadBigEndian(out TableId);
             reader.TryReadBigEndian(out NumberOfColumn);
             reader.TryReadBigEndian(out FieldDataTypeId);

@@ -12,7 +12,6 @@ namespace PgNet.BackendMessage
 
         public ErrorResponse(ReadOnlyMemory<byte> bytes, ArrayPool<ErrorOrNoticeResponseField> arrayPool)
         {
-            var encoding = Encoding.UTF8;
             var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(bytes));
             reader.TryRead(out MessageType);
             reader.TryReadBigEndian(out Length);
@@ -23,7 +22,7 @@ namespace PgNet.BackendMessage
                 {
                     while (true)
                     {
-                        var field = new ErrorOrNoticeResponseField(ref reader, encoding);
+                        var field = new ErrorOrNoticeResponseField(ref reader);
                         if (field.Type == FieldCodes.Termination)
                             break;
                         list.Append(field);
@@ -44,7 +43,7 @@ namespace PgNet.BackendMessage
         public readonly byte Type;
         public readonly string Value;
 
-        public ErrorOrNoticeResponseField(ref SequenceReader<byte> reader, Encoding encoding)
+        public ErrorOrNoticeResponseField(ref SequenceReader<byte> reader)
         {
             reader.TryRead(out Type);
             Value = string.Empty;
@@ -57,7 +56,7 @@ namespace PgNet.BackendMessage
                 }
                 else
                 {
-                    Value = reader.ReadNullTerminateString(encoding);
+                    Value = reader.ReadUtf8NullTerminateStringAsUtf16();
                 }
             }
         }

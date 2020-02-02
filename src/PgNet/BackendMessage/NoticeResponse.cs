@@ -1,6 +1,5 @@
 using System;
 using System.Buffers;
-using System.Text;
 
 namespace PgNet.BackendMessage
 {
@@ -12,7 +11,6 @@ namespace PgNet.BackendMessage
 
         public NoticeResponse(ReadOnlyMemory<byte> bytes, ArrayPool<ErrorOrNoticeResponseField> arrayPool)
         {
-            var encoding = Encoding.UTF8;
             var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(bytes));
             reader.TryRead(out MessageType);
             reader.TryReadBigEndian(out Length);
@@ -23,7 +21,7 @@ namespace PgNet.BackendMessage
                 {
                     while (true)
                     {
-                        var field = new ErrorOrNoticeResponseField(ref reader, encoding);
+                        var field = new ErrorOrNoticeResponseField(ref reader);
                         if (field.Type == FieldCodes.Termination)
                             break;
                         list.Append(field);

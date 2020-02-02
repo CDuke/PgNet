@@ -1,5 +1,4 @@
 using System;
-using System.Text;
 
 namespace PgNet.FrontendMessage
 {
@@ -7,14 +6,11 @@ namespace PgNet.FrontendMessage
     {
         private readonly ReadOnlyMemory<char> m_query;
 
-        public Query(ReadOnlyMemory<char> query)
-        {
-            m_query = query;
-        }
+        public Query(ReadOnlyMemory<char> query) => m_query = query;
 
         public int CalculateLength()
         {
-            return 1 + sizeof(int) + Encoding.UTF8.GetByteCount(m_query.Span) + 1;
+            return 1 + sizeof(int) + PgUtf8.GetByteCount(m_query.Span) + 1;
         }
 
         public void Write(Memory<byte> buffer)
@@ -22,7 +18,7 @@ namespace PgNet.FrontendMessage
             var w = new BinarySpanWriter(buffer.Span);
             w.WriteByte(FrontendMessageCode.Query);
             w.WriteInt32(buffer.Length - 1);
-            w.WriteNullTerminateString(m_query, Encoding.UTF8);
+            w.WriteNullTerminateUtf8String(m_query);
         }
     }
 }

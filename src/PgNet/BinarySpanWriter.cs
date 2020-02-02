@@ -1,6 +1,5 @@
 using System;
 using System.Buffers.Binary;
-using System.Text;
 
 namespace PgNet
 {
@@ -15,33 +14,26 @@ namespace PgNet
             m_position = 0;
         }
 
-        public void WriteString(string s, Encoding encoding)
+        public void WriteNullTerminateUtf8String(string s)
         {
             var slice = m_span.Slice(m_position);
-            var count = encoding.GetBytes(s, slice);
-            m_position += count;
-        }
-
-        public void WriteNullTerminateString(string s, Encoding encoding)
-        {
-            var slice = m_span.Slice(m_position);
-            var count = encoding.GetBytes(s, slice);
+            var count = PgUtf8.ToUtf8(s, slice);
             slice[count] = 0;
             m_position += count + 1;
         }
 
-        public void WriteNullTerminateString(ReadOnlyMemory<char> s, Encoding encoding)
+        public void WriteNullTerminateUtf8String(ReadOnlyMemory<char> s)
         {
             var slice = m_span.Slice(m_position);
-            var count = encoding.GetBytes(s.Span, slice);
+            var count = PgUtf8.ToUtf8(s.Span, slice);
             slice[count] = 0;
             m_position += count + 1;
         }
 
-        public void WriteNullTerminateString(ReadOnlySpan<char> s, Encoding encoding)
+        public void WriteNullTerminateUtf8String(ReadOnlySpan<char> s)
         {
             var slice = m_span.Slice(m_position);
-            var count = encoding.GetBytes(s, slice);
+            var count = PgUtf8.ToUtf8(s, slice);
             slice[count] = 0;
             m_position += count + 1;
         }
@@ -67,7 +59,7 @@ namespace PgNet
             m_position += bytes.Length;
         }
 
-        public void WriteSpan(in Span<byte> bytes)
+        public void WriteSpan(ReadOnlySpan<byte> bytes)
         {
             bytes.CopyTo(m_span.Slice(m_position));
             m_position += bytes.Length;
@@ -93,7 +85,7 @@ namespace PgNet
         {
             var slice = m_span.Slice(m_position);
             BinaryPrimitives.WriteInt32BigEndian(slice, i);
-            m_position += 4; //sizeof(int);
+            m_position += sizeof(int);
         }
     }
 }
