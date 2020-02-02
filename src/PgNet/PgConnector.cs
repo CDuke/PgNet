@@ -211,32 +211,56 @@ namespace PgNet
 
         private static async ValueTask<Socket> ConnectAsync(string host)
         {
+            // Note that there aren't any timeoutable or cancellable DNS methods
             var endpointsTask = ParseHost(host);
             var endpoints = endpointsTask.IsCompletedSuccessfully
                 ? endpointsTask.Result
                 : await endpointsTask.ConfigureAwait(false);
 
+            Socket? socket = default;
+            Exception? exception = default;
             foreach (var ipAddress in endpoints)
             {
-                var protocolType = ipAddress.AddressFamily == AddressFamily.InterNetwork
-                    ? ProtocolType.Tcp
-                    : ProtocolType.IP;
-                var socket = new Socket(ipAddress.AddressFamily, SocketType.Stream, protocolType);
-
-                SetSocketOptions(socket);
-
-                var connectTask = socket.ConnectAsync(ipAddress, PostgreSQLDefaultPort);
-                if (!connectTask.IsCompletedSuccessfully)
+                if (ipAddress == null
+                    || (ipAddress.AddressFamily == AddressFamily.InterNetwork && !Socket.OSSupportsIPv4)
+                    || (ipAddress.AddressFamily == AddressFamily.InterNetworkV6 && !Socket.OSSupportsIPv6))
                 {
-                    await connectTask.ConfigureAwait(false);
+                    continue;
                 }
 
-                return socket;
+                var protocolType = (ipAddress.AddressFamily == AddressFamily.InterNetwork || ipAddress.AddressFamily == AddressFamily.InterNetworkV6)
+                    ? ProtocolType.Tcp
+                    : ProtocolType.IP;
+
+                socket = new Socket(ipAddress.AddressFamily, SocketType.Stream, protocolType);
+
+                try
+                {
+                    var connectTask = socket.ConnectAsync(ipAddress, PostgreSQLDefaultPort);
+                    if (!connectTask.IsCompletedSuccessfully)
+                    {
+                        await connectTask.ConfigureAwait(false);
+                    }
+
+                    exception = null;
+                    break;
+                }
+                catch (Exception e)
+                {
+                    exception = e;
+                    socket.SafeDispose();
+                    socket = default;
+                }
             }
 
-            //TODO:
-            ThrowHelper.ThrowNotImplementedException();
-            return null;
+            if (socket == null)
+            {
+                throw exception ?? new SocketException((int)SocketError.AddressNotAvailable);
+            }
+
+            SetSocketOptions(socket);
+
+            return socket;
         }
 
         private static ValueTask<IPAddress[]> ParseHost(string host)
@@ -489,12 +513,15 @@ namespace PgNet
 
         public async ValueTask CloseAsync(int socketCloseTimeoutSeconds, CancellationToken cancellationToken)
         {
-            var socket = m_socket!;
-            var sentSimpleMessageTask = SendSimpleMessage(socket, new Terminate(), cancellationToken);
-            if (!sentSimpleMessageTask.IsCompletedSuccessfully)
-                await sentSimpleMessageTask.ConfigureAwait(false);
-            socket.Shutdown(SocketShutdown.Both);
-            socket.Close(socketCloseTimeoutSeconds);
+            if (m_socket != null)
+            {
+                var socket = m_socket;
+                var sentSimpleMessageTask = SendSimpleMessage(socket, new Terminate(), cancellationToken);
+                if (!sentSimpleMessageTask.IsCompletedSuccessfully)
+                    await sentSimpleMessageTask.ConfigureAwait(false);
+                socket.Shutdown(SocketShutdown.Both);
+                socket.Close(socketCloseTimeoutSeconds);
+            }
         }
 
         public async ValueTask DisposeAsync()
@@ -502,7 +529,7 @@ namespace PgNet
             var closeTask = CloseAsync(SocketCloseTimeoutDefault, CancellationToken.None);
             if (!closeTask.IsCompletedSuccessfully)
                 await closeTask.ConfigureAwait(false);
-            m_socket?.Dispose();
+            m_socket?.SafeDispose();
             m_socket = null;
         }
     }
