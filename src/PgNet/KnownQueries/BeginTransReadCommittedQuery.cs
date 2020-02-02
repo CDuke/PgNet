@@ -5,7 +5,7 @@ namespace PgNet.KnownQueries
 {
     internal readonly struct BeginTransReadCommittedQuery : IKnownFrontendMessage
     {
-        private static readonly ReadOnlyMemory<byte> s_message = new ReadOnlyMemory<byte>(new byte[]
+        private static readonly ReadOnlyMemory<byte> s_message = new byte[]
         {
             FrontendMessageCode.Query, sizeof(int) + 48 + 1,
             (byte)'B', (byte)'E', (byte)'G', (byte)'I', (byte)'N', (byte)' ',
@@ -14,11 +14,8 @@ namespace PgNet.KnownQueries
             (byte)'L', (byte)'E', (byte)'V', (byte)'E', (byte)'L', (byte)' ',
             (byte)'R', (byte)'E', (byte)'A', (byte)'D', (byte)' ',
             (byte)'C', (byte)'O', (byte)'M' , (byte)'M', (byte)'I', (byte)'T' , (byte)'T', (byte)'E', (byte)'D',  0
-        });
+        };
 
-        public ReadOnlyMemory<byte> GetMessage()
-        {
-            return s_message;
-        }
+        public ReadOnlyMemory<byte> GetMessage() => s_message;
     }
 }
