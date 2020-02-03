@@ -1,10 +1,9 @@
+using System;
 using System.Text;
 using System.Text.Unicode;
 
 namespace PgNet
 {
-    using System;
-
     internal static class PgUtf8
     {
         private static readonly Encoding s_utf8 = Encoding.UTF8;
