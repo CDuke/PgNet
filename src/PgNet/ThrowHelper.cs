@@ -45,7 +45,7 @@ namespace PgNet
 
         private static string FormatInvariant<T>(string message, T arg0)
         {
-            return string.Format(CultureInfo.InvariantCulture, message, arg0);
+            return string.Format(CultureInfo.InvariantCulture, message, arg0.ToString());
         }
     }
 }
