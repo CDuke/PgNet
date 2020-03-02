@@ -72,6 +72,10 @@ namespace PgNet.BackendMessage
 
         public Authentication ReadAuthentication(MessageRef messageRef) => new Authentication(SliceMessage(messageRef));
 
+        public bool IsAuthenticationOK(MessageRef messageRef) => Authentication.IsOk(SliceMessage(messageRef));
+
+        public BackendKeyData ReadBackendKeyData(MessageRef messageRef) => new BackendKeyData(SliceMessage(messageRef));
+
         private ReadOnlyMemory<byte> SliceMessage(MessageRef messageRef) =>
             m_receiveBuffer.Slice(messageRef.StartIndex, messageRef.MessageLength);
     }

@@ -310,7 +310,7 @@ namespace PgNet
                 {
                     case BackendMessageCode.AuthenticationRequest:
                         var authResponse = messageReader.ReadAuthentication(messageRef);
-                        await ProcessAuthentication(authResponse, userName, password, socket, sendBuffer, receiveBuffer, cancellationToken)
+                        await ProcessAuthentication(authResponse, userName, password, socket, sendBuffer, messageReader, cancellationToken)
                             .ConfigureAwait(false);
                         break;
                     case BackendMessageCode.ErrorResponse:
@@ -329,8 +329,8 @@ namespace PgNet
             }
         }
 
-        private async ValueTask ProcessAuthentication(Authentication authResponse, string userName, string password,
-            Socket socket, Memory<byte> sendBuffer, Memory<byte> receiveBuffer, CancellationToken cancellationToken)
+        private async ValueTask ProcessAuthentication<TReceiver>(Authentication authResponse, string userName, string password,
+            Socket socket, Memory<byte> sendBuffer, BackendMessageReader<TReceiver> messageReader, CancellationToken cancellationToken) where TReceiver : IReceiver
         {
             switch (authResponse.AuthenticationRequestType)
             {
@@ -372,64 +372,47 @@ namespace PgNet
                     break;
             }
 
-            var result = await socket.ReceiveAsync(receiveBuffer, SocketFlags.None, cancellationToken)
-                .ConfigureAwait(false);
+            var message = MessageRef.Empty;
 
-            var buffer = receiveBuffer;
-            if (result > 0)
+            while (true)
             {
-                buffer = buffer.Slice(0, result);
+                var moveNextTask = messageReader.MoveNext(message, cancellationToken);
+                message = !moveNextTask.IsCompletedSuccessfully
+                    ? await moveNextTask
+                    : moveNextTask.Result;
 
-                byte responseCode;
-                if (!Authentication.IsOk(buffer))
+                if (!message.HasData)
                 {
-                    responseCode = buffer.Span[0];
-
-                    switch (responseCode)
-                    {
-                        case BackendMessageCode.AuthenticationRequest:
-                            //TODO:
+                    break;
+                }
+                switch (message.MessageType)
+                {
+                    case BackendMessageCode.AuthenticationRequest:
+                        if (!messageReader.IsAuthenticationOK(message))
+                        {
                             ThrowHelper.ThrowNotImplementedException();
-
-                            break;
-                        case BackendMessageCode.ErrorResponse:
-                            var error = new ErrorResponse(buffer, ArrayPool<ErrorOrNoticeResponseField>.Shared);
-                            break;
-                        default:
-                            ThrowHelper.ThrowUnexpectedBackendMessageException(responseCode);
-                            break;
-                    }
+                        }
+                        break;
+                    case BackendMessageCode.ParameterStatus:
+                        // TODO:
+                        break;
+                    case BackendMessageCode.BackendKeyData:
+                        var backendKeyData = messageReader.ReadBackendKeyData(message);
+                        m_processId = backendKeyData.ProcessId;
+                        m_secretKey = backendKeyData.SecretKey;
+                        break;
+                    case BackendMessageCode.ReadyForQuery:
+                        var readyForQuery = messageReader.ReadReadyForQuery(message);
+                        m_transactionStatus = readyForQuery.TransactionStatus;
+                        break;
+                    case BackendMessageCode.ErrorResponse:
+                        //TODO:
+                        var error = messageReader.ReadErrorResponse(message);
+                        break;
+                    default:
+                        ThrowHelper.ThrowUnexpectedBackendMessageException(message.MessageType);
+                        break;
                 }
-                buffer = buffer.Slice(Authentication.OkResponseLength);
-
-                responseCode = buffer.Span[0];
-                while (responseCode == BackendMessageCode.ParameterStatus)
-                {
-                    var parameterStatus = new ParameterStatus(buffer);
-                    buffer = buffer.Slice(parameterStatus.Length + 1);
-                    responseCode = buffer.Span[0];
-                }
-
-                if (responseCode == BackendMessageCode.BackendKeyData)
-                {
-                    var backendKeyData = new BackendKeyData(buffer);
-                    m_processId = backendKeyData.ProcessId;
-                    m_secretKey = backendKeyData.SecretKey;
-                    buffer = buffer.Slice(backendKeyData.Length + 1);
-                    responseCode = buffer.Span[0];
-                }
-
-                if (responseCode == BackendMessageCode.ReadyForQuery)
-                {
-                    var readyForQuery = new ReadyForQuery(buffer);
-                    m_transactionStatus = readyForQuery.TransactionStatus;
-                    buffer = buffer.Slice(readyForQuery.Length + 1);
-                }
-            }
-            else
-            {
-                // TODO:
-                ThrowHelper.ThrowNotImplementedException();
             }
         }
 
