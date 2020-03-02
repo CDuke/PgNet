@@ -108,21 +108,22 @@ namespace PgNet
             {
                 var receiveBuffer = new Memory<byte>(receiveBufferArray);
                 var reader = new BackendMessageReader<SocketReceiver>(new SocketReceiver(socket), receiveBuffer);
+                var messageRef = MessageRef.Empty;
                 while (true)
                 {
-                    var moveNextTask = reader.MoveNext(cancellationToken);
-                    var hasNext = !moveNextTask.IsCompletedSuccessfully
+                    var moveNextTask = reader.MoveNext(messageRef, cancellationToken);
+                    messageRef = !moveNextTask.IsCompletedSuccessfully
                         ? await moveNextTask
                         : moveNextTask.Result;
-                    if (!hasNext)
+                    if (!messageRef.HasData)
                     {
                         break;
                     }
 
-                    switch (reader.MessageType)
+                    switch (messageRef.MessageType)
                     {
                         case BackendMessageCode.CompletedResponse:
-                            reader.ReadCommandComplete();
+                            reader.ReadCommandComplete(messageRef);
                             break;
                         case BackendMessageCode.CopyInResponse:
                             ThrowHelper.ThrowNotImplementedException();
@@ -131,26 +132,26 @@ namespace PgNet
                             ThrowHelper.ThrowNotImplementedException();
                             break;
                         case BackendMessageCode.RowDescription:
-                            reader.ReadRowDescription();
+                            reader.ReadRowDescription(messageRef);
                             break;
                         case BackendMessageCode.DataRow:
-                            reader.ReadDataRow();
+                            reader.ReadDataRow(messageRef);
                             break;
                         case BackendMessageCode.EmptyQueryResponse:
                             ThrowHelper.ThrowNotImplementedException();
                             break;
                         case BackendMessageCode.ErrorResponse:
-                            reader.ReadErrorResponse();
+                            reader.ReadErrorResponse(messageRef);
                             ThrowHelper.ThrowNotImplementedException();
                             break;
                         case BackendMessageCode.ReadyForQuery:
-                            reader.ReadReadyForQuery();
+                            reader.ReadReadyForQuery(messageRef);
                             break;
                         case BackendMessageCode.NoticeResponse:
-                            reader.ReadNoticeResponse();
+                            reader.ReadNoticeResponse(messageRef);
                             break;
                         default:
-                            ThrowHelper.ThrowUnexpectedBackendMessageException(reader.MessageType);
+                            ThrowHelper.ThrowUnexpectedBackendMessageException(messageRef.MessageType);
                             break;
                     }
                 }

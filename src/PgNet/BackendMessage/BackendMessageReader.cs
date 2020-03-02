@@ -6,69 +6,96 @@ using System.Threading.Tasks;
 
 namespace PgNet.BackendMessage
 {
-    internal class BackendMessageReader<T> where T : IReceiver
+    internal readonly struct BackendMessageReader<T> where T : IReceiver
     {
-        private T m_receiver;
-        private Memory<byte> m_receiveBuffer;
-        private ReadOnlyMemory<byte> m_content;
-        private readonly int m_lastReceiveCount;
-        private int m_totalReceived;
-
-        private bool m_readyForQuery;
-
-        public byte MessageType { get; private set; }
-        public int MessageSize { get; private set; }
+        private readonly T m_receiver;
+        private readonly Memory<byte> m_receiveBuffer;
 
         public BackendMessageReader(T receiver, Memory<byte> receiveBuffer)
         {
             m_receiver = receiver;
             m_receiveBuffer = receiveBuffer;
-            m_lastReceiveCount = 0;
-            m_totalReceived = 0;
-            m_content = Memory<byte>.Empty;
-            MessageType = 0;
-            MessageSize = 0;
-            m_readyForQuery = false;
         }
 
-        public async ValueTask<bool> MoveNext(CancellationToken cancellationToken)
+        public async ValueTask<MessageRef> MoveNext(MessageRef previousMessage, CancellationToken cancellationToken)
         {
-            if (m_readyForQuery)
-                return false;
-            if (MessageSize > 0)
-                m_content = m_content.Slice(MessageSize + 1);
-            if (m_content.IsEmpty)
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var contentLength = previousMessage.ContentLength;
+            var messageStartIndex = previousMessage.StartIndex;
+            var messageLength = previousMessage.MessageLength;
+            contentLength -= messageLength;
+            if (contentLength == 0)
             {
+                if (previousMessage.IsReadyForQuery)
+                {
+                    return MessageRef.Empty;
+                }
+
                 var receiveTask = m_receiver.ReceiveAsync(m_receiveBuffer, cancellationToken);
-                var receiveCount = !receiveTask.IsCompletedSuccessfully
+                contentLength = !receiveTask.IsCompletedSuccessfully
                     ? await receiveTask.ConfigureAwait(false)
                     : receiveTask.Result;
 
-                if (receiveCount == 0)
-                    return false;
-                m_totalReceived += receiveCount;
-                if (m_totalReceived <= sizeof(byte) + sizeof(int))
-                    ThrowHelper.ThrowNotImplementedException();
-                m_content = m_receiveBuffer.Slice(0,receiveCount);
+                if (contentLength == 0)
+                {
+                    return MessageRef.Empty;
+                }
+
+                messageStartIndex = -messageLength;
             }
 
-            MessageType = m_content.Span[0];
-            MessageSize = BinaryPrimitives.ReadInt32BigEndian(m_content.Span.Slice(1));
-            m_readyForQuery = MessageType == BackendMessageCode.ReadyForQuery;
+            if (contentLength <= sizeof(byte) + sizeof(int))
+            {
+                ThrowHelper.ThrowNotImplementedException();
+            }
 
-            return true;
+            messageStartIndex += messageLength;
+
+            var messageType = m_receiveBuffer.Span[messageStartIndex];
+            messageLength = 1 + BinaryPrimitives.ReadInt32BigEndian(m_receiveBuffer.Span.Slice(messageStartIndex + 1));
+
+            return new MessageRef(messageType, messageStartIndex, messageLength, contentLength);
         }
 
-        public CommandComplete ReadCommandComplete() => new CommandComplete(m_content);
+        public CommandComplete ReadCommandComplete(MessageRef messageRef) => new CommandComplete(SliceMessage(messageRef));
 
-        public ReadyForQuery ReadReadyForQuery() => new ReadyForQuery(m_content);
+        public ReadyForQuery ReadReadyForQuery(MessageRef messageRef) => new ReadyForQuery(SliceMessage(messageRef));
 
-        public RowDescription ReadRowDescription() => new RowDescription(m_content);
+        public RowDescription ReadRowDescription(MessageRef messageRef) => new RowDescription(SliceMessage(messageRef));
 
-        public DataRow ReadDataRow() => new DataRow(m_content);
+        public DataRow ReadDataRow(MessageRef messageRef) => new DataRow(SliceMessage(messageRef));
 
-        public ErrorResponse ReadErrorResponse() => new ErrorResponse(m_content, ArrayPool<ErrorOrNoticeResponseField>.Shared);
+        public ErrorResponse ReadErrorResponse(MessageRef messageRef) => new ErrorResponse(SliceMessage(messageRef), ArrayPool<ErrorOrNoticeResponseField>.Shared);
 
-        public NoticeResponse ReadNoticeResponse() => new NoticeResponse(m_content, ArrayPool<ErrorOrNoticeResponseField>.Shared);
+        public NoticeResponse ReadNoticeResponse(MessageRef messageRef) => new NoticeResponse(SliceMessage(messageRef), ArrayPool<ErrorOrNoticeResponseField>.Shared);
+
+        private ReadOnlyMemory<byte> SliceMessage(MessageRef messageRef) =>
+            m_receiveBuffer.Slice(messageRef.StartIndex, messageRef.MessageLength);
+    }
+
+    internal readonly struct MessageRef
+    {
+        internal static MessageRef Empty = new MessageRef();
+
+        public readonly byte MessageType;
+
+        public readonly int StartIndex;
+
+        public readonly int MessageLength;
+
+        public readonly int ContentLength;
+
+        public MessageRef(byte messageType, int startIndex, int messageLength, int contentLength)
+        {
+            MessageType = messageType;
+            StartIndex = startIndex;
+            MessageLength = messageLength;
+            ContentLength = contentLength;
+        }
+
+        public bool IsReadyForQuery => MessageType == BackendMessageCode.ReadyForQuery;
+
+        public bool HasData => MessageLength > 0;
     }
 }
