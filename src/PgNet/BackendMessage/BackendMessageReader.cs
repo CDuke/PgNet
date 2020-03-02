@@ -70,6 +70,8 @@ namespace PgNet.BackendMessage
 
         public NoticeResponse ReadNoticeResponse(MessageRef messageRef) => new NoticeResponse(SliceMessage(messageRef), ArrayPool<ErrorOrNoticeResponseField>.Shared);
 
+        public Authentication ReadAuthentication(MessageRef messageRef) => new Authentication(SliceMessage(messageRef));
+
         private ReadOnlyMemory<byte> SliceMessage(MessageRef messageRef) =>
             m_receiveBuffer.Slice(messageRef.StartIndex, messageRef.MessageLength);
     }

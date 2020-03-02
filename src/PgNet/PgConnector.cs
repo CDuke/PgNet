@@ -104,9 +104,9 @@ namespace PgNet
             }
 
             var receiveBufferArray = m_arrayPool.Rent(512);
+            var receiveBuffer = new Memory<byte>(receiveBufferArray);
             try
             {
-                var receiveBuffer = new Memory<byte>(receiveBufferArray);
                 var reader = new BackendMessageReader<SocketReceiver>(new SocketReceiver(socket), receiveBuffer);
                 var messageRef = MessageRef.Empty;
                 while (true)
@@ -195,8 +195,8 @@ namespace PgNet
             var receiveBufferBytes = m_arrayPool.Rent(1);
             try
             {
-                var receiveBuffer = new Memory<byte>(receiveBufferBytes);
-                var receiveCount = await socket.ReceiveAsync(receiveBuffer, SocketFlags.None, cancellationToken).ConfigureAwait(false);
+                var socketReceiver = new SocketReceiver(socket);
+                var receiveCount = await socketReceiver.ReceiveAsync(receiveBufferBytes, cancellationToken).ConfigureAwait(false);
                 return receiveCount <= 0;
             }
             catch (SocketException socketException) when (socketException.SocketErrorCode == SocketError.ConnectionReset)
@@ -295,25 +295,30 @@ namespace PgNet
         private async ValueTask ProcessStartupMessageResponse(Socket socket, Memory<byte> sendBuffer, Memory<byte> receiveBuffer,
             string userName, string password, CancellationToken cancellationToken)
         {
-            var receiveAsyncTask = socket.ReceiveAsync(receiveBuffer, SocketFlags.None, cancellationToken);
-            var receiveAsync = receiveAsyncTask.IsCompletedSuccessfully
+            var receiver = new SocketReceiver(socket);
+            var messageReader = new BackendMessageReader<SocketReceiver>(receiver, receiveBuffer);
+            var messageRef = MessageRef.Empty;
+            var receiveAsyncTask = messageReader.MoveNext(messageRef, cancellationToken);
+            messageRef = receiveAsyncTask.IsCompletedSuccessfully
                 ? receiveAsyncTask.Result
                 : await receiveAsyncTask.ConfigureAwait(false);
 
 
-            if (receiveAsync > 0)
+            if (messageRef.HasData)
             {
-                var responseCode = receiveBuffer.Span[0];
-                switch (responseCode)
+                switch (messageRef.MessageType)
                 {
                     case BackendMessageCode.AuthenticationRequest:
-                        var authResponse = receiveBuffer.Slice(0, receiveAsync);
+                        var authResponse = messageReader.ReadAuthentication(messageRef);
                         await ProcessAuthentication(authResponse, userName, password, socket, sendBuffer, receiveBuffer, cancellationToken)
                             .ConfigureAwait(false);
                         break;
-                    case BackendMessageCode.ErrorResponse: break;
+                    case BackendMessageCode.ErrorResponse:
+                        // TODO: process error response
+                        messageReader.ReadErrorResponse(messageRef);
+                        break;
                     default:
-                        ThrowHelper.ThrowUnexpectedBackendMessageException(responseCode);
+                        ThrowHelper.ThrowUnexpectedBackendMessageException(messageRef.MessageType);
                         break;
                 }
             }
@@ -324,10 +329,9 @@ namespace PgNet
             }
         }
 
-        private async ValueTask ProcessAuthentication(ReadOnlyMemory<byte> authenticationResponse, string userName, string password,
+        private async ValueTask ProcessAuthentication(Authentication authResponse, string userName, string password,
             Socket socket, Memory<byte> sendBuffer, Memory<byte> receiveBuffer, CancellationToken cancellationToken)
         {
-            var authResponse = new Authentication(authenticationResponse);
             switch (authResponse.AuthenticationRequestType)
             {
                 case AuthenticationRequestType.Ok:

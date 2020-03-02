@@ -7,16 +7,17 @@ namespace PgNet.BackendMessage
 {
     internal readonly struct SocketReceiver : IReceiver
     {
-        private readonly Socket _socket;
+        private readonly Socket m_socket;
 
         public SocketReceiver(Socket socket)
         {
-            _socket = socket;
+            m_socket = socket;
         }
 
         public ValueTask<int> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken)
         {
-            return _socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
+            return m_socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
         }
+
     }
 }
