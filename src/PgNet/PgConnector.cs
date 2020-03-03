@@ -104,16 +104,15 @@ namespace PgNet
             }
 
             var receiveBufferArray = m_arrayPool.Rent(512);
-            var receiveBuffer = new Memory<byte>(receiveBufferArray);
             try
             {
-                var reader = new BackendMessageReader<SocketReceiver>(new SocketReceiver(socket), receiveBuffer);
+                var reader = new BackendMessageReader<SocketReceiver>(new SocketReceiver(socket), receiveBufferArray);
                 var messageRef = MessageRef.Empty;
                 while (true)
                 {
                     var moveNextTask = reader.MoveNext(messageRef, cancellationToken);
                     messageRef = !moveNextTask.IsCompletedSuccessfully
-                        ? await moveNextTask
+                        ? await moveNextTask.ConfigureAwait(false)
                         : moveNextTask.Result;
                     if (!messageRef.HasData)
                     {
@@ -149,6 +148,9 @@ namespace PgNet
                             break;
                         case BackendMessageCode.NoticeResponse:
                             reader.ReadNoticeResponse(messageRef);
+                            break;
+                        case BackendMessageCode.NotificationResponse:
+                            ThrowHelper.ThrowNotImplementedException();
                             break;
                         default:
                             ThrowHelper.ThrowUnexpectedBackendMessageException(messageRef.MessageType);
@@ -378,7 +380,7 @@ namespace PgNet
             {
                 var moveNextTask = messageReader.MoveNext(message, cancellationToken);
                 message = !moveNextTask.IsCompletedSuccessfully
-                    ? await moveNextTask
+                    ? await moveNextTask.ConfigureAwait(false)
                     : moveNextTask.Result;
 
                 if (!message.HasData)
@@ -408,6 +410,7 @@ namespace PgNet
                     case BackendMessageCode.ErrorResponse:
                         //TODO:
                         var error = messageReader.ReadErrorResponse(message);
+                        ThrowHelper.ThrowNotImplementedException();
                         break;
                     default:
                         ThrowHelper.ThrowUnexpectedBackendMessageException(message.MessageType);
