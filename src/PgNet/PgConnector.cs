@@ -57,14 +57,16 @@ namespace PgNet
                 var sendBuffer = new Memory<byte>(sendBufferBytes);
                 var receiveBuffer = new Memory<byte>(sendBufferBytes);
 
+                var sender = new SocketSender(socket);
                 var sendStartupMessageTask =
-                    SendStartupMessage(socket, sendBuffer, database, userName, cancellationToken);
+                    SendStartupMessage(sender, sendBuffer, database, userName, cancellationToken);
                 if (!sendStartupMessageTask.IsCompletedSuccessfully)
                 {
                     await sendStartupMessageTask.ConfigureAwait(false);
                 }
-
-                var processStartupMessageResponseTask = ProcessStartupMessageResponse(socket, sendBuffer, receiveBuffer,
+                
+                var receiver = new SocketReceiver(socket);
+                var processStartupMessageResponseTask = ProcessStartupMessageResponse(sender, sendBuffer, receiver, receiveBuffer,
                     userName, password, cancellationToken);
                 if (!processStartupMessageResponseTask.IsCompletedSuccessfully)
                 {
@@ -97,23 +99,23 @@ namespace PgNet
         {
             var w = new Query(query);
             var socket = m_socket!;
-            var sendRequestTask = WriteAndSendMessage(socket, w, cancellationToken);
+            var sender = new SocketSender(socket);
+            var sendRequestTask = WriteAndSendMessage(sender, w, cancellationToken);
             if (!sendRequestTask.IsCompletedSuccessfully)
             {
                 await sendRequestTask.ConfigureAwait(false);
             }
 
             var receiveBufferArray = m_arrayPool.Rent(512);
-            var receiveBuffer = new Memory<byte>(receiveBufferArray);
             try
             {
-                var reader = new BackendMessageReader<SocketReceiver>(new SocketReceiver(socket), receiveBuffer);
+                var reader = new BackendMessageReader<SocketReceiver>(new SocketReceiver(socket), receiveBufferArray);
                 var messageRef = MessageRef.Empty;
                 while (true)
                 {
                     var moveNextTask = reader.MoveNext(messageRef, cancellationToken);
                     messageRef = !moveNextTask.IsCompletedSuccessfully
-                        ? await moveNextTask
+                        ? await moveNextTask.ConfigureAwait(false)
                         : moveNextTask.Result;
                     if (!messageRef.HasData)
                     {
@@ -150,6 +152,9 @@ namespace PgNet
                         case BackendMessageCode.NoticeResponse:
                             reader.ReadNoticeResponse(messageRef);
                             break;
+                        case BackendMessageCode.NotificationResponse:
+                            ThrowHelper.ThrowNotImplementedException();
+                            break;
                         default:
                             ThrowHelper.ThrowUnexpectedBackendMessageException(messageRef.MessageType);
                             break;
@@ -178,7 +183,8 @@ namespace PgNet
                 await openTask.ConfigureAwait(false);
             var cancelRequest = new CancelRequest(m_processId, m_secretKey);
             var socket = connector.m_socket!;
-            var sendTask = connector.WriteAndSendMessage(socket, cancelRequest, cancellationToken);
+            var sender = new SocketSender(socket);
+            var sendTask = connector.WriteAndSendMessage(sender, cancelRequest, cancellationToken);
             if (sendTask.IsCompletedSuccessfully)
                 await sendTask.ConfigureAwait(false);
 
@@ -282,21 +288,20 @@ namespace PgNet
             return new ValueTask<IPAddress[]>(Dns.GetHostAddressesAsync(host));
         }
 
-        private static ValueTask<int> SendStartupMessage(Socket socket, Memory<byte> sendBuffer, string database, string userName,
-            CancellationToken cancellationToken)
+        private static ValueTask<int> SendStartupMessage<TSender>(TSender sender, Memory<byte> sendBuffer, string database, string userName,
+            CancellationToken cancellationToken) where  TSender : ISender
         {
             var startupMessage = new StartupMessage();
             startupMessage.SetDatabase(database);
             startupMessage.SetUser(userName);
             startupMessage.SetApplicationName("MyApp");
-            return WriteAndSendMessage(startupMessage, socket, sendBuffer, cancellationToken);
+            return WriteAndSendMessage(startupMessage, sender, sendBuffer, cancellationToken);
         }
 
-        private async ValueTask ProcessStartupMessageResponse(Socket socket, Memory<byte> sendBuffer, Memory<byte> receiveBuffer,
-            string userName, string password, CancellationToken cancellationToken)
+        private async ValueTask ProcessStartupMessageResponse<TSender, TReceiver>(TSender sender, Memory<byte> sendBuffer, TReceiver receiver, Memory<byte> receiveBuffer,
+            string userName, string password, CancellationToken cancellationToken) where TSender : ISender where  TReceiver : IReceiver
         {
-            var receiver = new SocketReceiver(socket);
-            var messageReader = new BackendMessageReader<SocketReceiver>(receiver, receiveBuffer);
+            var messageReader = new BackendMessageReader<TReceiver>(receiver, receiveBuffer);
             var messageRef = MessageRef.Empty;
             var receiveAsyncTask = messageReader.MoveNext(messageRef, cancellationToken);
             messageRef = receiveAsyncTask.IsCompletedSuccessfully
@@ -310,7 +315,7 @@ namespace PgNet
                 {
                     case BackendMessageCode.AuthenticationRequest:
                         var authResponse = messageReader.ReadAuthentication(messageRef);
-                        await ProcessAuthentication(authResponse, userName, password, socket, sendBuffer, messageReader, cancellationToken)
+                        await ProcessAuthentication(authResponse, userName, password, sender, sendBuffer, messageReader, cancellationToken)
                             .ConfigureAwait(false);
                         break;
                     case BackendMessageCode.ErrorResponse:
@@ -329,8 +334,9 @@ namespace PgNet
             }
         }
 
-        private async ValueTask ProcessAuthentication<TReceiver>(Authentication authResponse, string userName, string password,
-            Socket socket, Memory<byte> sendBuffer, BackendMessageReader<TReceiver> messageReader, CancellationToken cancellationToken) where TReceiver : IReceiver
+        private async ValueTask ProcessAuthentication<TSender, TReceiver>(Authentication authResponse, string userName, string password,
+            TSender sender, Memory<byte> sendBuffer, BackendMessageReader<TReceiver> messageReader, CancellationToken cancellationToken)
+            where TReceiver : IReceiver where TSender : ISender
         {
             switch (authResponse.AuthenticationRequestType)
             {
@@ -341,10 +347,10 @@ namespace PgNet
                     ThrowHelper.ThrowNotImplementedException();
                     break;
                 case AuthenticationRequestType.CleartextPassword:
-                    await AuthenticateClearText(password, socket, sendBuffer, cancellationToken).ConfigureAwait(false);
+                    await AuthenticateClearText(password, sender, sendBuffer, cancellationToken).ConfigureAwait(false);
                     break;
                 case AuthenticationRequestType.MD5Password:
-                    await AuthenticateMD5(authResponse.AdditionalInfo, userName, password, socket, sendBuffer, cancellationToken).ConfigureAwait(false);
+                    await AuthenticateMD5(authResponse.AdditionalInfo, userName, password, sender, sendBuffer, cancellationToken).ConfigureAwait(false);
                     break;
                 case AuthenticationRequestType.SCMCredential:
                     ThrowHelper.ThrowNotImplementedException();
@@ -378,7 +384,7 @@ namespace PgNet
             {
                 var moveNextTask = messageReader.MoveNext(message, cancellationToken);
                 message = !moveNextTask.IsCompletedSuccessfully
-                    ? await moveNextTask
+                    ? await moveNextTask.ConfigureAwait(false)
                     : moveNextTask.Result;
 
                 if (!message.HasData)
@@ -408,6 +414,7 @@ namespace PgNet
                     case BackendMessageCode.ErrorResponse:
                         //TODO:
                         var error = messageReader.ReadErrorResponse(message);
+                        ThrowHelper.ThrowNotImplementedException();
                         break;
                     default:
                         ThrowHelper.ThrowUnexpectedBackendMessageException(message.MessageType);
@@ -416,49 +423,29 @@ namespace PgNet
             }
         }
 
-        private static ValueTask<int> AuthenticateClearText(string password, Socket socket,
-            Memory<byte> sendBuffer, CancellationToken cancellationToken)
+        private static ValueTask<int> AuthenticateClearText<TSender>(string password, TSender sender,
+            Memory<byte> sendBuffer, CancellationToken cancellationToken) where TSender : ISender
         {
             var w = new PasswordCleartext(password);
-            return WriteAndSendMessage(w, socket, sendBuffer, cancellationToken);
+            return WriteAndSendMessage(w, sender, sendBuffer, cancellationToken);
         }
 
-        private static ValueTask<int> AuthenticateMD5(ReadOnlyMemory<byte> salt, string user, string password,
-            Socket socket, Memory<byte> sendBuffer, CancellationToken cancellationToken)
+        private static ValueTask<int> AuthenticateMD5<TSender>(ReadOnlyMemory<byte> salt, string user, string password,
+            TSender sender, Memory<byte> sendBuffer, CancellationToken cancellationToken) where TSender : ISender
         {
             var w = new PasswordMD5Message(user, password, salt);
-            return WriteAndSendMessage(w, socket, sendBuffer, cancellationToken);
+            return WriteAndSendMessage(w, sender, sendBuffer, cancellationToken);
         }
 
-        /*private async ValueTask<int> WriteAndSendMessage<T>(T writer, Socket socket, CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
+        private static ValueTask<int> WriteAndSendMessage<TSender, TFrontendMessageWriter>(TFrontendMessageWriter writer, TSender sender, Memory<byte> sendBuffer,
+            CancellationToken cancellationToken) where TFrontendMessageWriter : struct, IFrontendMessageWriter where TSender : ISender
         {
             var messageLength = writer.CalculateLength();
-            var messageBytes = m_arrayPool.Rent(messageLength);
-            var message = new Memory<byte>(messageBytes).Slice(0, messageLength);
-
-            int send;
-            try
-            {
-                writer.Write(message);
-                send = await socket.SendAsync(message, SocketFlags.None, cancellationToken);
-            }
-            finally
-            {
-                m_arrayPool.Return(messageBytes);
-            }
-
-            return send;
-        }*/
-
-        private static ValueTask<int> WriteAndSendMessage<T>(T writer, Socket socket, Memory<byte> sendBuffer,
-            CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
-        {
-            var messageLength = writer.CalculateLength();
-            return WriteAndSendMessage(writer, socket, sendBuffer, messageLength, cancellationToken);
+            return WriteAndSendMessage(writer, sender, sendBuffer, messageLength, cancellationToken);
         }
 
-        private async ValueTask<int> WriteAndSendMessage<T>(Socket socket, T writer,
-            CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
+        private async ValueTask<int> WriteAndSendMessage<TSender, TFrontendMessageWriter>(TSender sender, TFrontendMessageWriter writer,
+            CancellationToken cancellationToken) where TFrontendMessageWriter : struct, IFrontendMessageWriter where TSender : ISender
         {
             var messageLength = writer.CalculateLength();
             var sendBufferBytes = m_arrayPool.Rent(messageLength);
@@ -466,7 +453,7 @@ namespace PgNet
             {
                 var sendBuffer = new Memory<byte>(sendBufferBytes);
 
-                var sendAsyncTask = WriteAndSendMessage(writer, socket, sendBuffer, messageLength, cancellationToken);
+                var sendAsyncTask = WriteAndSendMessage(writer, sender, sendBuffer, messageLength, cancellationToken);
 
                 return !sendAsyncTask.IsCompletedSuccessfully
                     ? await sendAsyncTask.ConfigureAwait(false)
@@ -478,20 +465,13 @@ namespace PgNet
             }
         }
 
-        private static ValueTask<int> WriteAndSendMessage<T>(T writer, Socket socket, Memory<byte> sendBuffer, int messageLength,
-            CancellationToken cancellationToken) where T : struct, IFrontendMessageWriter
+        private static ValueTask<int> WriteAndSendMessage<TSender, TFrontendMessageWriter>(TFrontendMessageWriter writer, TSender sender, Memory<byte> sendBuffer, int messageLength,
+            CancellationToken cancellationToken) where TFrontendMessageWriter : struct, IFrontendMessageWriter where  TSender : ISender
         {
             var message = sendBuffer.Slice(0, messageLength);
             writer.Write(message);
-            return socket.SendAsync(message, SocketFlags.None, cancellationToken);
+            return sender.SendAsync(message, cancellationToken);
         }
-
-        /*private ValueTask<int> SendSimpleMessage<T>(T sender, CancellationToken cancellationToken) where T : struct, IFrontendMessageSender
-        {
-            return m_socket != null
-                ? sender.Send(m_socket, cancellationToken)
-                : new ValueTask<int>(0);
-        }*/
 
         private static ValueTask<int> SendSimpleMessage<T>(Socket socket, T knownMessage, CancellationToken cancellationToken) where T : struct, IKnownFrontendMessage
         {
