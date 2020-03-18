@@ -13,9 +13,9 @@ namespace PgNet.BackendMessage
         public DataRow(ReadOnlyMemory<byte> bytes)
         {
             var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(bytes));
-            reader.TryRead(out MessageType);
-            reader.TryReadBigEndian(out Length);
-            reader.TryReadBigEndian(out ColumnsCount);
+            _ = reader.TryRead(out MessageType);
+            _ = reader.TryReadBigEndian(out Length);
+            _ = reader.TryReadBigEndian(out ColumnsCount);
 
             if (ColumnsCount > 0)
             {
@@ -34,7 +34,7 @@ namespace PgNet.BackendMessage
 
         private static void ReadCell(ref SequenceReader<byte> reader, out int start, out int length)
         {
-            reader.TryReadBigEndian(out length);
+            _ = reader.TryReadBigEndian(out length);
             start = (int)reader.Consumed;
         }
 
