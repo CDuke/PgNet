@@ -193,7 +193,6 @@ namespace PgNet
             var waitTask = connector.WaitForDisconnect(socket, cancellationToken);
             if (waitTask.IsCompletedSuccessfully)
                 await waitTask.ConfigureAwait(false);
-
         }
 
         private async ValueTask<bool> WaitForDisconnect(Socket socket, CancellationToken cancellationToken)
@@ -307,7 +306,6 @@ namespace PgNet
             messageRef = receiveAsyncTask.IsCompletedSuccessfully
                 ? receiveAsyncTask.Result
                 : await receiveAsyncTask.ConfigureAwait(false);
-
 
             if (messageRef.HasData)
             {
@@ -444,24 +442,31 @@ namespace PgNet
             return WriteAndSendMessage(writer, sender, sendBuffer, messageLength, cancellationToken);
         }
 
-        private async ValueTask<int> WriteAndSendMessage<TSender, TFrontendMessageWriter>(TSender sender, TFrontendMessageWriter writer,
+        private ValueTask<int> WriteAndSendMessage<TSender, TFrontendMessageWriter>(TSender sender, TFrontendMessageWriter writer,
             CancellationToken cancellationToken) where TFrontendMessageWriter : struct, IFrontendMessageWriter where TSender : ISender
         {
             var messageLength = writer.CalculateLength();
             var sendBufferBytes = m_arrayPool.Rent(messageLength);
-            try
+            var sendBuffer = new Memory<byte>(sendBufferBytes);
+            var sendAsyncTask = WriteAndSendMessage(writer, sender, sendBuffer, messageLength, cancellationToken);
+            if (sendAsyncTask.IsCompletedSuccessfully)
             {
-                var sendBuffer = new Memory<byte>(sendBufferBytes);
 
-                var sendAsyncTask = WriteAndSendMessage(writer, sender, sendBuffer, messageLength, cancellationToken);
-
-                return !sendAsyncTask.IsCompletedSuccessfully
-                    ? await sendAsyncTask.ConfigureAwait(false)
-                    : sendAsyncTask.Result;
-            }
-            finally
-            {
                 m_arrayPool.Return(sendBufferBytes);
+                return sendAsyncTask;
+            }
+            return Awaited(sendAsyncTask, m_arrayPool, sendBufferBytes);
+
+            static async ValueTask<int> Awaited(ValueTask<int> task, ArrayPool<byte> pool, byte[] buffer)
+            {
+                try
+                {
+                    return await task.ConfigureAwait(false);
+                }
+                finally
+                {
+                    pool.Return(buffer);
+                }
             }
         }
 
