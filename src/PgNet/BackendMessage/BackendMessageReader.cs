@@ -17,34 +17,55 @@ namespace PgNet.BackendMessage
             m_receiveBuffer = receiveBuffer;
         }
 
-        public async ValueTask<MessageRef> MoveNext(MessageRef previousMessage, CancellationToken cancellationToken)
+        public ValueTask<MessageRef> MoveNextAsync(MessageRef previousMessage, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var contentLength = previousMessage.ContentLength;
-            var messageStartIndex = previousMessage.StartIndex;
             var messageLength = previousMessage.MessageLength;
-            contentLength -= messageLength;
-            if (contentLength == 0)
+            var contentLength = previousMessage.ContentLength - messageLength;
+            var messageStartIndex = previousMessage.StartIndex;
+
+            if (contentLength > 0)
             {
-                if (previousMessage.IsReadyForQuery)
-                {
-                    return MessageRef.Empty;
-                }
-
-                var receiveTask = m_receiver.ReceiveAsync(m_receiveBuffer, cancellationToken);
-                contentLength = !receiveTask.IsCompletedSuccessfully
-                    ? await receiveTask.ConfigureAwait(false)
-                    : receiveTask.Result;
-
-                if (contentLength == 0)
-                {
-                    return MessageRef.Empty;
-                }
-
-                messageStartIndex = -messageLength;
+                return new ValueTask<MessageRef>(CreateMessageRef(messageStartIndex, messageLength, contentLength, m_receiveBuffer));
             }
 
+            if (previousMessage.IsReadyForQuery)
+            {
+                return new ValueTask<MessageRef>(MessageRef.Empty);
+            }
+
+            var receiveTask = m_receiver.ReceiveAsync(m_receiveBuffer, cancellationToken);
+            if (receiveTask.IsCompletedSuccessfully)
+            {
+                contentLength = receiveTask.Result;
+                if (contentLength == 0)
+                {
+                    return new ValueTask<MessageRef>(MessageRef.Empty);
+                }
+                messageStartIndex = -messageLength;
+
+                return new ValueTask<MessageRef>(CreateMessageRef(messageStartIndex, messageLength, contentLength, m_receiveBuffer));
+
+            }
+
+            return Awaited(receiveTask, messageStartIndex, messageLength, m_receiveBuffer);
+
+            static async ValueTask<MessageRef> Awaited(ValueTask<int> task, int mStartIndex, int mLength, Memory<byte> buffer)
+            {
+                var cLength = await task.ConfigureAwait(false);
+                if (cLength == 0)
+                {
+                    return MessageRef.Empty;
+                }
+                mStartIndex = -mLength;
+
+                return CreateMessageRef(mStartIndex, mLength, cLength, buffer);
+            }
+        }
+
+        private static MessageRef CreateMessageRef(int messageStartIndex, int messageLength, int contentLength, Memory<byte> receiveBuffer)
+        {
             if (contentLength <= sizeof(byte) + sizeof(int))
             {
                 ThrowHelper.ThrowNotImplementedException();
@@ -52,8 +73,8 @@ namespace PgNet.BackendMessage
 
             messageStartIndex += messageLength;
 
-            var messageType = m_receiveBuffer.Span[messageStartIndex];
-            messageLength = 1 + BinaryPrimitives.ReadInt32BigEndian(m_receiveBuffer.Span.Slice(messageStartIndex + 1));
+            var messageType = receiveBuffer.Span[messageStartIndex];
+            messageLength = 1 + BinaryPrimitives.ReadInt32BigEndian(receiveBuffer.Span.Slice(messageStartIndex + 1));
 
             return new MessageRef(messageType, messageStartIndex, messageLength, contentLength);
         }

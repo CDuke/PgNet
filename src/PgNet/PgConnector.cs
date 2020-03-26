@@ -113,7 +113,7 @@ namespace PgNet
                 var messageRef = MessageRef.Empty;
                 while (true)
                 {
-                    var moveNextTask = reader.MoveNext(messageRef, cancellationToken);
+                    var moveNextTask = reader.MoveNextAsync(messageRef, cancellationToken);
                     messageRef = !moveNextTask.IsCompletedSuccessfully
                         ? await moveNextTask.ConfigureAwait(false)
                         : moveNextTask.Result;
@@ -302,7 +302,7 @@ namespace PgNet
         {
             var messageReader = new BackendMessageReader<TReceiver>(receiver, receiveBuffer);
             var messageRef = MessageRef.Empty;
-            var receiveAsyncTask = messageReader.MoveNext(messageRef, cancellationToken);
+            var receiveAsyncTask = messageReader.MoveNextAsync(messageRef, cancellationToken);
             messageRef = receiveAsyncTask.IsCompletedSuccessfully
                 ? receiveAsyncTask.Result
                 : await receiveAsyncTask.ConfigureAwait(false);
@@ -380,7 +380,7 @@ namespace PgNet
 
             while (true)
             {
-                var moveNextTask = messageReader.MoveNext(message, cancellationToken);
+                var moveNextTask = messageReader.MoveNextAsync(message, cancellationToken);
                 message = !moveNextTask.IsCompletedSuccessfully
                     ? await moveNextTask.ConfigureAwait(false)
                     : moveNextTask.Result;
