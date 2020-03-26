@@ -19,7 +19,10 @@ namespace PgNet.BackendMessage
 
         public ValueTask<MessageRef> MoveNextAsync(MessageRef previousMessage, CancellationToken cancellationToken)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return new ValueTask<MessageRef>(Task.FromCanceled<MessageRef>(cancellationToken));
+            }
 
             var messageLength = previousMessage.MessageLength;
             var contentLength = previousMessage.ContentLength - messageLength;
@@ -49,18 +52,18 @@ namespace PgNet.BackendMessage
 
             }
 
-            return Awaited(receiveTask, messageStartIndex, messageLength, m_receiveBuffer);
+            return Awaited(receiveTask, messageLength, m_receiveBuffer);
 
-            static async ValueTask<MessageRef> Awaited(ValueTask<int> task, int mStartIndex, int mLength, Memory<byte> buffer)
+            static async ValueTask<MessageRef> Awaited(ValueTask<int> task, int mLength, Memory<byte> buffer)
             {
                 var cLength = await task.ConfigureAwait(false);
                 if (cLength == 0)
                 {
                     return MessageRef.Empty;
                 }
-                mStartIndex = -mLength;
+                var startIndex = -mLength;
 
-                return CreateMessageRef(mStartIndex, mLength, cLength, buffer);
+                return CreateMessageRef(startIndex, mLength, cLength, buffer);
             }
         }
 
